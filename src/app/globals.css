@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+/* ─── Obsidian Codex Design System ────────────────────────────────────────────
+ * Aesthetic: "Dark Cartography" — a nautical intelligence briefing crossed
+ * with a scholarly lexicon. Deep navy-black depths, warm gold accents,
+ * Space Mono for technical data, Cormorant Garamond for literary gravitas.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  --color-codex-bg:           #06080F;
+  --color-codex-surface:      #0B1120;
+  --color-codex-surface-high: #101927;
+  --color-codex-border:       #1A2C48;
+  --color-codex-text:         #C8D8F0;
+  --color-codex-muted:        #4A6880;
+  --color-codex-faint:        #2A3C52;
+  --color-codex-gold:         #C89B4A;
+  --color-codex-gold-bright:  #E8B86A;
+  --color-codex-teal:         #1FBDBF;
+  --color-codex-violet:       #7565F8;
+  --color-status-new:         #4B90FF;
+  --color-status-practicing:  #F4A922;
+  --color-status-mastered:    #22D8A4;
+  --font-display: var(--font-cormorant), 'Georgia', serif;
+  --font-mono:    var(--font-space-mono), 'Courier New', monospace;
+  --font-sans:    var(--font-dm-sans), system-ui, sans-serif;
+  --ease-card:    cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+body {
+  background-color: var(--color-codex-bg);
+  color: var(--color-codex-text);
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-codex-gold) 28%, transparent);
+  color: var(--color-codex-text);
+}
+
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: var(--color-codex-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-codex-border); border-radius: 2px; }
+
+.font-display { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.01em; }
+
+.card {
+  background-color: var(--color-codex-surface);
+  border: 1px solid var(--color-codex-border);
+  border-radius: 2px;
+  transition: border-color 0.2s var(--ease-card);
+}
+.card:hover { border-color: color-mix(in srgb, var(--color-codex-gold) 45%, var(--color-codex-border)); }
+
+.badge-new        { color: var(--color-status-new);        background: color-mix(in srgb, var(--color-status-new) 12%, transparent);        border: 1px solid color-mix(in srgb, var(--color-status-new) 28%, transparent); }
+.badge-practicing { color: var(--color-status-practicing); background: color-mix(in srgb, var(--color-status-practicing) 12%, transparent); border: 1px solid color-mix(in srgb, var(--color-status-practicing) 28%, transparent); }
+.badge-mastered   { color: var(--color-status-mastered);   background: color-mix(in srgb, var(--color-status-mastered) 12%, transparent);   border: 1px solid color-mix(in srgb, var(--color-status-mastered) 28%, transparent); }
+
+.field {
+  width: 100%;
+  background-color: var(--color-codex-bg);
+  border: 1px solid var(--color-codex-border);
+  border-radius: 2px;
+  color: var(--color-codex-text);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  padding: 0.625rem 0.875rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.field::placeholder { color: var(--color-codex-muted); }
+.field:focus        { border-color: var(--color-codex-gold); }
+
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem;
+  background-color: var(--color-codex-gold);
+  color: var(--color-codex-bg);
+  font-family: var(--font-mono);
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 0.625rem 1.25rem;
+  border: none; border-radius: 2px; cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+  white-space: nowrap;
+}
+.btn-primary:hover    { background-color: var(--color-codex-gold-bright); }
+.btn-primary:disabled { opacity: 0.42; cursor: not-allowed; }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  background: transparent; color: var(--color-codex-muted);
+  font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-codex-border); border-radius: 2px; cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+.btn-ghost:hover { color: var(--color-codex-text); border-color: var(--color-codex-faint); }
+
+.btn-danger {
+  display: inline-flex; align-items: center;
+  background: transparent; color: var(--color-codex-muted);
+  font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid transparent; border-radius: 2px; cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.btn-danger:hover { color: #F87171; border-color: color-mix(in srgb, #F87171 38%, transparent); }
+
+.topic-card {
+  position: relative;
+  background-color: var(--color-codex-surface);
+  border: 1px solid var(--color-codex-border);
+  border-radius: 2px; padding: 1.25rem;
+  cursor: pointer; user-select: none;
+  transition: border-color 0.2s var(--ease-card), background-color 0.2s var(--ease-card), box-shadow 0.2s var(--ease-card);
+}
+.topic-card:hover {
+  border-color: color-mix(in srgb, var(--color-codex-gold) 55%, var(--color-codex-border));
+  background-color: var(--color-codex-surface-high);
+}
+.topic-card.selected {
+  border-color: var(--color-codex-gold);
+  background-color: var(--color-codex-surface-high);
+  box-shadow: 0 0 0 1px var(--color-codex-gold), inset 0 0 28px color-mix(in srgb, var(--color-codex-gold) 5%, transparent);
+}
+
+.category-tag {
+  font-family: var(--font-mono);
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 0.18rem 0.5rem; border-radius: 2px;
+}
+
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-codex-border) 20%, var(--color-codex-border) 80%, transparent);
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up         { animation: fadeUp 0.35s var(--ease-card) both; }
+.animate-fade-up-delay-1 { animation-delay: 0.07s; }
+.animate-fade-up-delay-2 { animation-delay: 0.14s; }
+.animate-fade-up-delay-3 { animation-delay: 0.21s; }

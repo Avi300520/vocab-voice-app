@@ -1,21 +1,24 @@
 /**
  * src/app/setup-session/_data/topics.ts
  *
- * Curated intellectual conversation topics.
- * POLICY: mundane daily-life scenarios are EXPLICITLY EXCLUDED.
- * No ordering food. No tourist small talk. No weather chitchat.
- * Every topic demands analytical depth and rewards advanced vocabulary.
+ * Broad, intellectually rich conversation categories.
+ * Each entry represents a wide domain — the AI steers the discussion,
+ * so the topic needs breadth, not a pre-scripted angle.
  */
 
 export type TopicCategory =
-  | "PSYCHOLOGY"
-  | "CYBERSECURITY"
-  | "FINANCE"
-  | "PHILOSOPHY"
-  | "NEUROSCIENCE"
-  | "ECONOMICS"
-  | "CRYPTOGRAPHY"
-  | "POLITICAL THEORY";
+  | 'HISTORY'
+  | 'PHILOSOPHY'
+  | 'SCIENCE'
+  | 'TECHNOLOGY'
+  | 'SOCIETY'
+  | 'ECONOMICS'
+  | 'PSYCHOLOGY'
+  | 'POLITICS'
+  | 'CULTURE'
+  | 'ETHICS'
+  | 'ENVIRONMENT'
+  | 'LINGUISTICS';
 
 export interface Topic {
   id: string;
@@ -31,122 +34,150 @@ export interface Topic {
 
 export const TOPICS: Topic[] = [
   {
-    id: "milgram-obedience",
-    title: "The Milgram Obedience Experiments",
-    description: "Analyze the 1961 Milgram authority compliance research: the methodology, the ethical controversy, and what the results reveal about institutional obedience versus individual moral agency.",
-    category: "PSYCHOLOGY",
-    depth: 3,
-    keyTerms: ["obedience", "authority", "agentic state", "moral disengagement", "replication crisis"],
-    context: "Milgram obedience experiment - authority, compliance, ethics, institutional psychology",
-  },
-  {
-    id: "rbi-data-leak",
-    title: "Mitigating Data Leaks via Remote Browser Isolation",
-    description: "Examine how RBI architectures intercept untrusted web content in a remote container, preventing zero-day exploits and DLP violations while maintaining enterprise latency tolerances.",
-    category: "CYBERSECURITY",
-    depth: 5,
-    keyTerms: ["remote browser isolation", "zero-trust", "DLP", "air gap", "pixel streaming"],
-    context: "Remote Browser Isolation (RBI) - zero-trust architecture, data exfiltration prevention, enterprise security",
-  },
-  {
-    id: "emh-behavioral-finance",
-    title: "Efficient Market Hypothesis vs. Behavioral Finance",
-    description: "Interrogate the EMH against behavioral economics evidence: can markets be rational in aggregate yet systematically exploitable through cognitive bias arbitrage?",
-    category: "FINANCE",
-    depth: 4,
-    keyTerms: ["efficient market", "anomaly", "arbitrage", "cognitive bias", "alpha", "mean reversion"],
-    context: "EMH vs. behavioral finance - market efficiency, cognitive biases, asset pricing anomalies",
-  },
-  {
-    id: "stanford-prison",
-    title: "The Stanford Prison Experiment and Situational Forces",
-    description: "Critically evaluate the 1971 Stanford simulation: how situational variables override dispositional character, and why recent scholarly re-examinations challenge the original interpretation.",
-    category: "PSYCHOLOGY",
-    depth: 3,
-    keyTerms: ["situationism", "deindividuation", "role absorption", "demand characteristics", "replication"],
-    context: "Stanford Prison Experiment - situational psychology, role theory, ethics of social research",
-  },
-  {
-    id: "prospect-theory",
-    title: "Prospect Theory and Loss Aversion",
-    description: "Unpack the 1979 Kahneman-Tversky framework: how the S-shaped value function, probability weighting, and reference-point dependence systematically violate expected utility theory.",
-    category: "ECONOMICS",
-    depth: 4,
-    keyTerms: ["loss aversion", "reference point", "probability weighting", "framing effect", "endowment effect"],
-    context: "Prospect theory - loss aversion, decision-making under risk, deviations from rationality",
-  },
-  {
-    id: "zero-knowledge-proofs",
-    title: "Zero-Knowledge Proofs in Modern Cryptography",
-    description: "Explore zk-SNARKs and zk-STARKs: how a prover convinces a verifier of a truth without revealing any underlying information, and their role in privacy-preserving blockchains.",
-    category: "CRYPTOGRAPHY",
-    depth: 5,
-    keyTerms: ["zero-knowledge", "zk-SNARK", "prover", "verifier", "completeness", "soundness", "succinct proof"],
-    context: "Zero-knowledge proofs - cryptographic privacy, zk-SNARKs, blockchain verification",
-  },
-  {
-    id: "dunning-kruger",
-    title: "The Dunning-Kruger Effect and Metacognitive Failure",
-    description: "Scrutinize the 1999 study and its mathematical re-analyses: does the effect reflect genuine metacognitive blindness, or is it a statistical artefact of regression to the mean?",
-    category: "PSYCHOLOGY",
-    depth: 3,
-    keyTerms: ["metacognition", "calibration", "illusory superiority", "regression artifact", "epistemic humility"],
-    context: "Dunning-Kruger effect - metacognition, self-assessment, epistemic overconfidence",
-  },
-  {
-    id: "supply-chain-attacks",
-    title: "Supply Chain Attack Vectors and Organizational Resilience",
-    description: "Dissect SolarWinds-style infiltration: how adversaries compromise trusted build pipelines, the detection gap problem, and the tension between software provenance and development velocity.",
-    category: "CYBERSECURITY",
-    depth: 5,
-    keyTerms: ["supply chain attack", "SBOM", "build pipeline", "lateral movement", "SLSA framework"],
-    context: "Software supply chain attacks - SolarWinds, SBOM, build pipeline security, vendor trust",
-  },
-  {
-    id: "black-scholes",
-    title: "Black-Scholes Options Pricing and Its Limits",
-    description: "Derive the intuition behind Black-Scholes, examine its assumptions (log-normal returns, constant volatility), and explore why volatility smiles and tail events expose structural fragility.",
-    category: "FINANCE",
-    depth: 5,
-    keyTerms: ["implied volatility", "volatility smile", "delta hedging", "fat tails", "lognormal", "Greeks"],
-    context: "Black-Scholes model - options pricing, implied volatility, market assumptions and failures",
-  },
-  {
-    id: "bystander-effect",
-    title: "The Bystander Effect and Diffusion of Responsibility",
-    description: "Examine the Kitty Genovese case research by Darley and Latane: pluralistic ignorance, diffusion of responsibility, and the field experiments that have since complicated the picture.",
-    category: "PSYCHOLOGY",
+    id: 'global-history',
+    title: 'Global History & Civilisations',
+    description:
+      'Explore the rise and fall of empires, the forces behind revolution, and how historical patterns echo in the modern world.',
+    category: 'HISTORY',
     depth: 2,
-    keyTerms: ["bystander effect", "diffusion of responsibility", "pluralistic ignorance", "prosocial behavior"],
-    context: "Bystander effect - social inhibition of helping behavior, diffusion of responsibility",
+    keyTerms: ['empire', 'revolution', 'colonialism', 'legacy', 'turning point'],
+    context:
+      'Global history — civilisations, empires, revolutions, colonialism, and their modern legacies.',
   },
   {
-    id: "cognitive-dissonance",
-    title: "Cognitive Dissonance and Belief Rationalization",
-    description: "Trace Festinger from 1957 through modern neuroscience: how the brain resolves conflicting beliefs via motivated reasoning, and the implications for persuasion and behavior change.",
-    category: "PSYCHOLOGY",
+    id: 'ethical-dilemmas',
+    title: 'Ethical Dilemmas',
+    description:
+      'Wrestle with the hardest moral questions: where duty conflicts with consequence, and individual rights clash with collective good.',
+    category: 'ETHICS',
     depth: 3,
-    keyTerms: ["cognitive dissonance", "motivated reasoning", "rationalization", "belief perseverance"],
-    context: "Cognitive dissonance - psychological tension, belief rationalization, motivated reasoning",
+    keyTerms: ['moral duty', 'consequentialism', 'justice', 'rights', 'trade-off'],
+    context:
+      'Ethical dilemmas — moral philosophy, duty vs. consequence, rights, justice, and hard choices.',
   },
   {
-    id: "game-theory-nash",
-    title: "Nash Equilibria, Cooperation, and the Prisoner Dilemma",
-    description: "Navigate game-theoretic models of strategic interaction: when rational self-interest produces collectively suboptimal outcomes, and what mechanisms enable cooperation to emerge.",
-    category: "ECONOMICS",
+    id: 'future-technologies',
+    title: 'Future Technologies',
+    description:
+      'Debate the societal impact of AI, biotechnology, quantum computing, and other emerging technologies reshaping civilisation.',
+    category: 'TECHNOLOGY',
+    depth: 3,
+    keyTerms: ['AI', 'biotech', 'disruption', 'automation', 'singularity'],
+    context:
+      'Future technologies — AI, biotech, quantum computing, automation, and their civilisational impact.',
+  },
+  {
+    id: 'society-inequality',
+    title: 'Society & Inequality',
+    description:
+      'Examine class, race, gender, and power structures: how inequality is reproduced, contested, and sometimes dismantled.',
+    category: 'SOCIETY',
+    depth: 3,
+    keyTerms: ['class', 'privilege', 'social mobility', 'systemic bias', 'solidarity'],
+    context:
+      'Society and inequality — class, race, gender, power structures, and paths to equity.',
+  },
+  {
+    id: 'economics-power',
+    title: 'Economics & Power',
+    description:
+      'Analyse markets, wealth concentration, trade, monetary policy, and the political forces that shape economic outcomes.',
+    category: 'ECONOMICS',
     depth: 4,
-    keyTerms: ["Nash equilibrium", "dominant strategy", "Pareto optimality", "repeated game", "tit-for-tat"],
-    context: "Game theory - Nash equilibrium, prisoner dilemma, cooperation and defection dynamics",
+    keyTerms: ['market', 'wealth', 'monetary policy', 'trade', 'inequality'],
+    context:
+      'Economics and power — markets, wealth concentration, monetary policy, trade, and political economy.',
+  },
+  {
+    id: 'psychology-behaviour',
+    title: 'Psychology & Human Behaviour',
+    description:
+      'Unpack cognition, bias, motivation, and social influence — why people think and act the way they do, and how to change.',
+    category: 'PSYCHOLOGY',
+    depth: 3,
+    keyTerms: ['cognitive bias', 'motivation', 'influence', 'decision-making', 'identity'],
+    context:
+      'Psychology and behaviour — cognition, bias, motivation, social influence, and behaviour change.',
+  },
+  {
+    id: 'political-theory',
+    title: 'Political Theory & Governance',
+    description:
+      'Debate democracy, authoritarianism, sovereignty, and the fundamental question of who should wield power and why.',
+    category: 'POLITICS',
+    depth: 3,
+    keyTerms: ['democracy', 'sovereignty', 'legitimacy', 'authoritarianism', 'consent'],
+    context:
+      'Political theory — democracy, authoritarianism, sovereignty, governance, and legitimate power.',
+  },
+  {
+    id: 'philosophy-mind',
+    title: 'Philosophy of Mind & Consciousness',
+    description:
+      'Explore what it means to be conscious, whether free will exists, and what separates the mind from the body — or the machine.',
+    category: 'PHILOSOPHY',
+    depth: 4,
+    keyTerms: ['consciousness', 'free will', 'qualia', 'identity', 'dualism'],
+    context:
+      'Philosophy of mind — consciousness, free will, qualia, personal identity, and the mind-body problem.',
+  },
+  {
+    id: 'climate-environment',
+    title: 'Climate & the Environment',
+    description:
+      'Confront the science and politics of climate change, biodiversity loss, and the profound difficulty of coordinating a global response.',
+    category: 'ENVIRONMENT',
+    depth: 3,
+    keyTerms: ['climate change', 'biodiversity', 'carbon', 'sustainability', 'geopolitics'],
+    context:
+      'Climate and environment — climate science, biodiversity, carbon policy, sustainability, and global coordination.',
+  },
+  {
+    id: 'science-discovery',
+    title: 'Science & Discovery',
+    description:
+      'Discuss the nature of scientific knowledge, landmark discoveries, the replication crisis, and the frontier of what we do not yet understand.',
+    category: 'SCIENCE',
+    depth: 3,
+    keyTerms: ['hypothesis', 'paradigm shift', 'empiricism', 'replication', 'frontier'],
+    context:
+      'Science and discovery — scientific method, landmark discoveries, replication crisis, and knowledge frontiers.',
+  },
+  {
+    id: 'art-culture',
+    title: 'Art, Culture & Identity',
+    description:
+      'Examine how art and culture reflect and shape identity, nationalism, resistance, and the ever-shifting meaning of beauty.',
+    category: 'CULTURE',
+    depth: 2,
+    keyTerms: ['identity', 'aesthetics', 'nationalism', 'resistance', 'meaning'],
+    context:
+      'Art, culture, and identity — aesthetics, cultural identity, nationalism, resistance, and meaning-making.',
+  },
+  {
+    id: 'language-communication',
+    title: 'Language & Communication',
+    description:
+      'Analyse how language constructs reality, how rhetoric shapes politics, and what the death of languages means for human diversity.',
+    category: 'LINGUISTICS',
+    depth: 3,
+    keyTerms: ['rhetoric', 'framing', 'linguistic relativity', 'discourse', 'endangered language'],
+    context:
+      'Language and communication — rhetoric, framing, linguistic relativity, discourse, and endangered languages.',
   },
 ];
 
 export const CATEGORY_COLORS: Record<TopicCategory, { bg: string; text: string }> = {
-  "PSYCHOLOGY":       { bg: "color-mix(in srgb, var(--color-codex-violet) 15%, transparent)",       text: "var(--color-codex-violet)" },
-  "CYBERSECURITY":    { bg: "color-mix(in srgb, var(--color-codex-teal) 15%, transparent)",         text: "var(--color-codex-teal)" },
-  "FINANCE":          { bg: "color-mix(in srgb, var(--color-codex-gold) 15%, transparent)",         text: "var(--color-codex-gold)" },
-  "PHILOSOPHY":       { bg: "color-mix(in srgb, #A78BFA 15%, transparent)",                        text: "#A78BFA" },
-  "NEUROSCIENCE":     { bg: "color-mix(in srgb, #FB7185 15%, transparent)",                        text: "#FB7185" },
-  "ECONOMICS":        { bg: "color-mix(in srgb, var(--color-codex-gold-bright) 15%, transparent)", text: "var(--color-codex-gold-bright)" },
-  "CRYPTOGRAPHY":     { bg: "color-mix(in srgb, var(--color-status-new) 15%, transparent)",        text: "var(--color-status-new)" },
-  "POLITICAL THEORY": { bg: "color-mix(in srgb, #94A3B8 15%, transparent)",                       text: "#94A3B8" },
+  HISTORY:     { bg: 'color-mix(in srgb, #D97706 15%, transparent)', text: '#D97706' },
+  PHILOSOPHY:  { bg: 'color-mix(in srgb, #A78BFA 15%, transparent)', text: '#A78BFA' },
+  SCIENCE:     { bg: 'color-mix(in srgb, #60A5FA 15%, transparent)', text: '#60A5FA' },
+  TECHNOLOGY:  { bg: 'color-mix(in srgb, var(--color-codex-teal) 15%, transparent)', text: 'var(--color-codex-teal)' },
+  SOCIETY:     { bg: 'color-mix(in srgb, #FB7185 15%, transparent)', text: '#FB7185' },
+  ECONOMICS:   { bg: 'color-mix(in srgb, var(--color-codex-gold) 15%, transparent)', text: 'var(--color-codex-gold)' },
+  PSYCHOLOGY:  { bg: 'color-mix(in srgb, var(--color-codex-violet) 15%, transparent)', text: 'var(--color-codex-violet)' },
+  POLITICS:    { bg: 'color-mix(in srgb, #94A3B8 15%, transparent)', text: '#94A3B8' },
+  CULTURE:     { bg: 'color-mix(in srgb, #F472B6 15%, transparent)', text: '#F472B6' },
+  ETHICS:      { bg: 'color-mix(in srgb, #34D399 15%, transparent)', text: '#34D399' },
+  ENVIRONMENT: { bg: 'color-mix(in srgb, #4ADE80 15%, transparent)', text: '#4ADE80' },
+  LINGUISTICS: { bg: 'color-mix(in srgb, #2DD4BF 15%, transparent)', text: '#2DD4BF' },
 };

@@ -2,7 +2,7 @@
  * src/app/dashboard/page.tsx
  *
  * Protected dashboard — Server Component.
- * Sprint 2 validation panel + Sprint 3 navigation hub.
+ * Navigation hub for Word Bank and Session practice.
  */
 
 import Link from 'next/link';
@@ -61,8 +61,8 @@ export default async function DashboardPage({
         </form>
       </header>
 
-      {/* ── Session started banner (from createSession redirect) ── */}
-      {params.session && (
+      {/* ── Session ended banners ── */}
+      {params.ended === 'completed' && (
         <div
           className="mb-6 p-3 rounded text-sm animate-fade-up"
           style={{
@@ -72,7 +72,20 @@ export default async function DashboardPage({
             fontFamily: 'var(--font-mono)',
           }}
         >
-          ✓ Session created — Voice loop coming in Sprint 4.
+          ✓ Session completed. Great practice.
+        </div>
+      )}
+      {params.ended === 'abandoned' && (
+        <div
+          className="mb-6 p-3 rounded text-sm animate-fade-up"
+          style={{
+            color: 'var(--color-codex-muted)',
+            background: 'color-mix(in srgb, var(--color-codex-muted) 6%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--color-codex-muted) 18%, transparent)',
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          Session ended early.
         </div>
       )}
 
@@ -135,7 +148,7 @@ export default async function DashboardPage({
             Begin Practice
           </h2>
           <p className="text-xs" style={{ color: 'var(--color-codex-muted)' }}>
-            Select a topic · voice loop in Sprint 4
+            Choose a topic and start a voice session
           </p>
         </Link>
       </section>
@@ -150,7 +163,7 @@ export default async function DashboardPage({
           className="text-xs uppercase tracking-widest mb-4"
           style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
         >
-          Sprint 2 — DB Trigger &amp; RLS Validation
+          System — DB &amp; Auth Status
         </p>
 
         {profileResult.error ? (

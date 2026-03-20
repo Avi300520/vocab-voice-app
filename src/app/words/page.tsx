@@ -40,15 +40,14 @@ export default async function WordsPage() {
 
   return (
     <div
-      className="min-h-dvh px-4 py-8 md:px-6 md:py-10 max-w-3xl mx-auto w-full"
+      className="min-h-dvh px-4 py-8 md:px-6 md:py-12 max-w-3xl mx-auto w-full"
       style={{ color: 'var(--color-codex-text)' }}
     >
       {/* ── Top navigation ── */}
-      <nav className="flex items-center justify-between mb-8 animate-fade-up">
+      <nav className="flex items-center justify-between mb-10 animate-fade-up">
         <Link
           href="/dashboard"
           className="btn-ghost"
-          style={{ fontFamily: 'var(--font-mono)' }}
         >
           ← Dashboard
         </Link>
@@ -61,47 +60,53 @@ export default async function WordsPage() {
       </nav>
 
       {/* ── Page header ── */}
-      <header className="mb-6 animate-fade-up">
+      <header className="mb-8 animate-fade-up">
         <p
-          className="text-xs uppercase tracking-widest mb-1"
+          className="text-xs uppercase tracking-widest mb-2"
           style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
         >
           VocabVoice / Lexicon
         </p>
         <h1
-          className="font-display text-4xl md:text-5xl"
+          className="font-display text-4xl md:text-5xl leading-tight"
           style={{ color: 'var(--color-codex-text)' }}
         >
           Your Word Bank
         </h1>
+        <p
+          className="text-base mt-2"
+          style={{ color: 'var(--color-codex-muted)' }}
+        >
+          Track the vocabulary you're building session by session.
+        </p>
       </header>
 
       {/* ── Stats strip ── */}
       <div
-        className="flex flex-row gap-px mb-6 overflow-hidden rounded-sm animate-fade-up animate-fade-up-delay-1"
+        className="grid grid-cols-4 gap-px mb-8 overflow-hidden rounded animate-fade-up animate-fade-up-delay-1"
         style={{ border: '1px solid var(--color-codex-border)' }}
       >
         {(
           [
             { label: 'Total',      value: safeWords.length, color: 'var(--color-codex-text)' },
-            { label: 'New',        value: counts.new,       color: 'var(--color-status-new)' },
-            { label: 'Practicing', value: counts.practicing,color: 'var(--color-status-practicing)' },
-            { label: 'Mastered',   value: counts.mastered,  color: 'var(--color-status-mastered)' },
+            { label: 'New',        value: counts.new,        color: 'var(--color-status-new)' },
+            { label: 'Practicing', value: counts.practicing, color: 'var(--color-status-practicing)' },
+            { label: 'Mastered',   value: counts.mastered,   color: 'var(--color-status-mastered)' },
           ] as const
         ).map(({ label, value, color }) => (
           <div
             key={label}
-            className="flex-1 flex flex-col items-center justify-center py-3 px-2"
+            className="flex flex-col items-center justify-center py-4 px-2"
             style={{ background: 'var(--color-codex-surface)' }}
           >
             <span
-              className="text-xl md:text-2xl font-bold tabular-nums leading-none"
+              className="text-2xl md:text-3xl font-bold tabular-nums leading-none"
               style={{ fontFamily: 'var(--font-mono)', color }}
             >
               {value}
             </span>
             <span
-              className="text-xs uppercase tracking-widest mt-1"
+              className="text-xs uppercase tracking-widest mt-1.5"
               style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
             >
               {label}
@@ -111,11 +116,11 @@ export default async function WordsPage() {
       </div>
 
       {/* ── Add word form ── */}
-      <section className="mb-6">
+      <section className="mb-8">
         <AddWordForm />
       </section>
 
-      <div className="divider mb-6" />
+      <div className="divider mb-8" />
 
       {/* ── Word list / empty state ── */}
       <section>
@@ -126,43 +131,42 @@ export default async function WordsPage() {
               color: '#F87171',
               background: 'color-mix(in srgb, #F87171 8%, transparent)',
               border: '1px solid color-mix(in srgb, #F87171 20%, transparent)',
-              fontFamily: 'var(--font-mono)',
             }}
           >
             <p className="font-semibold">Failed to load words</p>
             <p className="mt-1 text-xs opacity-70">{wordsError.message}</p>
           </div>
         ) : safeWords.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-up">
+          <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-up">
             <p
-              className="font-display text-5xl mb-3 opacity-20"
+              className="font-display text-6xl mb-4 opacity-15"
               style={{ color: 'var(--color-codex-gold)' }}
             >
               ∅
             </p>
             <p
-              className="font-display text-xl"
-              style={{ color: 'var(--color-codex-muted)' }}
+              className="font-display text-2xl mb-2"
+              style={{ color: 'var(--color-codex-text)' }}
             >
               Your lexicon is empty
             </p>
             <p
-              className="text-sm mt-2"
-              style={{ color: 'var(--color-codex-faint)' }}
+              className="text-base max-w-sm"
+              style={{ color: 'var(--color-codex-muted)' }}
             >
-              Expand the form above and add your first word.
+              Expand the form above to add your first word. Build your vocabulary one entry at a time.
             </p>
           </div>
         ) : (
           <>
             <p
-              className="text-xs uppercase tracking-widest mb-4"
+              className="text-sm uppercase tracking-widest mb-5"
               style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
             >
               {safeWords.length} {safeWords.length === 1 ? 'entry' : 'entries'} — most recent first
             </p>
             {/* Mobile: single column — md+: 2-column grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {safeWords.map((word) => (
                 <WordCard key={word.id} word={word} />
               ))}

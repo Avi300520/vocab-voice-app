@@ -251,7 +251,23 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      /**
+       * Atomically inserts one user message + one assistant message for a
+       * single conversation turn, holding a FOR UPDATE lock on the session row
+       * so that concurrent requests for the same session serialize correctly.
+       *
+       * Returns the assigned turn_index (integer).
+       */
+      insert_session_turn: {
+        Args: {
+          p_session_id:     string;
+          p_user_id:        string;
+          p_transcript:     string;
+          p_reply_text:     string;
+          p_detected_words: string[];
+        };
+        Returns: number;
+      };
     };
     Enums: {
       word_status: WordStatus;

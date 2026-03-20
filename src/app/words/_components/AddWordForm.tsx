@@ -54,26 +54,26 @@ export default function AddWordForm() {
   }, [expanded]);
 
   return (
-    <div className="card p-4 md:p-5 animate-fade-up animate-fade-up-delay-1">
+    <div className="card p-5 md:p-6 animate-fade-up animate-fade-up-delay-1">
       {/* ── Header row ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <p
-            className="text-xs uppercase tracking-widest"
+            className="text-xs uppercase tracking-widest mb-1"
             style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
           >
-            Word Bank
+            Lexicon
           </p>
           <h2
-            className="font-display text-2xl md:text-3xl mt-0.5"
+            className="font-display text-2xl md:text-3xl"
             style={{ color: 'var(--color-codex-text)' }}
           >
-            Add New Word
+            Add a New Word
           </h2>
         </div>
         <button
           type="button"
-          className="btn-ghost"
+          className="btn-ghost flex-shrink-0"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
           aria-label={expanded ? 'Collapse form' : 'Expand form'}
@@ -87,17 +87,23 @@ export default function AddWordForm() {
         <form
           ref={formRef}
           action={formAction}
-          className="mt-4 flex flex-col gap-3"
+          className="mt-5 flex flex-col gap-4"
           noValidate
         >
           {/* ── Word (required) ── */}
           <div>
             <label
               htmlFor="word"
-              className="block text-xs uppercase tracking-widest mb-1.5"
-              style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
+              className="block text-sm font-medium mb-2"
+              style={{ color: 'var(--color-codex-text)' }}
             >
-              Word <span style={{ color: 'var(--color-codex-gold)' }}>*</span>
+              Word{' '}
+              <span
+                className="text-xs ml-1"
+                style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-gold)' }}
+              >
+                *required
+              </span>
             </label>
             <input
               ref={wordInputRef}
@@ -113,14 +119,20 @@ export default function AddWordForm() {
           </div>
 
           {/* ── Definition + Notes — stacked on mobile, side-by-side on md+ ── */}
-          <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <label
                 htmlFor="definition"
-                className="block text-xs uppercase tracking-widest mb-1.5"
-                style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
+                className="block text-sm font-medium mb-2"
+                style={{ color: 'var(--color-codex-text)' }}
               >
-                Definition <span style={{ color: 'var(--color-codex-faint)' }}>(optional)</span>
+                Definition{' '}
+                <span
+                  className="text-xs ml-1"
+                  style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-faint)' }}
+                >
+                  optional
+                </span>
               </label>
               <input
                 id="definition"
@@ -134,10 +146,16 @@ export default function AddWordForm() {
             <div className="flex-1">
               <label
                 htmlFor="notes"
-                className="block text-xs uppercase tracking-widest mb-1.5"
-                style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
+                className="block text-sm font-medium mb-2"
+                style={{ color: 'var(--color-codex-text)' }}
               >
-                Notes <span style={{ color: 'var(--color-codex-faint)' }}>(optional)</span>
+                Notes{' '}
+                <span
+                  className="text-xs ml-1"
+                  style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-faint)' }}
+                >
+                  optional
+                </span>
               </label>
               <input
                 id="notes"
@@ -152,32 +170,32 @@ export default function AddWordForm() {
 
           {/* ── Error feedback ── */}
           {state?.error && (
-            <p
-              className="text-xs px-3 py-2 rounded"
+            <div
+              className="flex items-start gap-2 text-sm px-4 py-3 rounded"
               style={{
                 color: '#F87171',
-                background: 'color-mix(in srgb, #F87171 10%, transparent)',
+                background: 'color-mix(in srgb, #F87171 8%, transparent)',
                 border: '1px solid color-mix(in srgb, #F87171 25%, transparent)',
-                fontFamily: 'var(--font-mono)',
               }}
             >
-              ✗ {state.error}
-            </p>
+              <span className="flex-shrink-0 mt-0.5">✗</span>
+              <span>{state.error}</span>
+            </div>
           )}
 
           {/* ── Success flash ── */}
           {state?.success && state.word && (
-            <p
-              className="text-xs px-3 py-2 rounded"
+            <div
+              className="flex items-center gap-2 text-sm px-4 py-3 rounded"
               style={{
                 color: 'var(--color-status-mastered)',
-                background: 'color-mix(in srgb, var(--color-status-mastered) 10%, transparent)',
+                background: 'color-mix(in srgb, var(--color-status-mastered) 8%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--color-status-mastered) 25%, transparent)',
-                fontFamily: 'var(--font-mono)',
               }}
             >
-              ✓ &ldquo;{state.word}&rdquo; added to your bank
-            </p>
+              <span>✓</span>
+              <span>&ldquo;{state.word}&rdquo; added to your bank</span>
+            </div>
           )}
 
           {/* ── Actions ── */}

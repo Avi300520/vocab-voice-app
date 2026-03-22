@@ -28,6 +28,13 @@ interface WordRecommendation {
   example:    string;
 }
 
+interface DiagnosticReport {
+  proficiency_level:           string;
+  grammar_and_syntax_feedback: string;
+  learning_path_recommendation: string;
+  target_words:                WordRecommendation[];
+}
+
 // ── POST handler ──────────────────────────────────────────────────────────────
 
 export async function POST(
@@ -88,20 +95,29 @@ export async function POST(
     .map((m) => `${m.role === 'user' ? 'LEARNER' : 'ASSESSOR'}: ${m.content}`)
     .join('\n');
 
-  // ── Generate word recommendations via GPT-4o ──────────────────────────────
-  const systemPrompt = `You are an expert vocabulary coach for English language learners. Analyse the proficiency interview transcript and select exactly 10 English words for the learner to study.
+  // ── Generate holistic diagnostic report via GPT-4o ───────────────────────
+  const systemPrompt = `You are an expert English language assessor and vocabulary coach. Analyse the proficiency interview transcript and produce a holistic diagnostic report.
 
-Selection criteria:
+Return ONLY a single valid JSON object — no explanation, no preamble, no markdown fences — matching this exact schema:
+
+{
+  "proficiency_level": "One concise label, e.g. 'B2 Upper-Intermediate' or 'C1 Advanced', with a 1–2 sentence justification.",
+  "grammar_and_syntax_feedback": "2–4 sentences identifying the learner's most notable grammatical patterns — both strengths and specific recurring errors observed in the transcript.",
+  "learning_path_recommendation": "2–3 sentences of concrete, personalised advice on what to focus on next: skills, register, vocabulary domains, or practice habits.",
+  "target_words": [
+    {"word":"...","definition":"One clear sentence.","example":"One natural sentence using the word in professional context."}
+  ]
+}
+
+Rules for target_words:
+- Exactly 10 entries
 - Match the learner's demonstrated level — not words they already use fluently
 - Relevant to their professional domain, goals, and stated challenges
 - Mix: precise academic vocabulary, domain-specific terms, and sophisticated connectors
 - Prefer B2–C1 level unless the transcript shows C2 proficiency already
-- Prefer words the learner attempted but used imprecisely, or words that would lift their precision
+- Prefer words the learner attempted but used imprecisely, or words that would clearly lift their precision`;
 
-Return ONLY valid JSON — a single array of exactly 10 objects. No explanation, no preamble, no markdown fences:
-[{"word":"...","definition":"One clear sentence.","example":"One natural sentence using the word in professional context."}]`;
-
-  let recommendations: WordRecommendation[];
+  let report: DiagnosticReport;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -110,11 +126,11 @@ Return ONLY valid JSON — a single array of exactly 10 objects. No explanation,
         { role: 'system', content: systemPrompt },
         {
           role:    'user',
-          content: `Here is the proficiency interview transcript:\n\n${transcriptText}\n\nGenerate the 10 target vocabulary words now.`,
+          content: `Here is the proficiency interview transcript:\n\n${transcriptText}\n\nGenerate the diagnostic report now.`,
         },
       ],
-      max_tokens:  800,
-      temperature: 0.4, // Lower temperature for consistent, well-chosen words
+      max_tokens:  1200,
+      temperature: 0.4,
     });
 
     const raw = completion.choices[0]?.message?.content?.trim() ?? '';
@@ -122,14 +138,14 @@ Return ONLY valid JSON — a single array of exactly 10 objects. No explanation,
 
     // Strip accidental markdown fences if present
     const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-    recommendations = JSON.parse(cleaned) as WordRecommendation[];
+    report = JSON.parse(cleaned) as DiagnosticReport;
 
-    if (!Array.isArray(recommendations) || recommendations.length === 0) {
-      throw new Error('LLM returned non-array or empty array');
+    if (!report.target_words || !Array.isArray(report.target_words) || report.target_words.length === 0) {
+      throw new Error('LLM returned invalid report structure');
     }
 
-    // Validate and sanitise entries
-    recommendations = recommendations
+    // Validate and sanitise target_words entries
+    report.target_words = report.target_words
       .filter((w) => typeof w.word === 'string' && w.word.trim())
       .slice(0, 10)
       .map((w) => ({
@@ -139,15 +155,16 @@ Return ONLY valid JSON — a single array of exactly 10 objects. No explanation,
       }));
 
   } catch (err) {
-    console.error('[diagnostic/finalize] LLM word generation failed:', err);
+    console.error('[diagnostic/finalize] LLM report generation failed:', err);
     return Response.json(
-      { error: 'Failed to generate word recommendations. Please try again.' },
+      { error: 'Failed to generate diagnostic report. Please try again.' },
       { status: 502 },
     );
   }
 
   // ── Insert words into the user's word bank (skip duplicates) ──────────────
-  const inserts = recommendations.map((w) => ({
+  // Migration 011 adds UNIQUE(user_id, word) so ON CONFLICT resolves correctly.
+  const inserts = report.target_words.map((w) => ({
     user_id:    user.id,
     word:       w.word,
     definition: w.definition || null,
@@ -158,13 +175,13 @@ Return ONLY valid JSON — a single array of exactly 10 objects. No explanation,
   const { error: insertError } = await supabase
     .from('words')
     .upsert(inserts, {
-      onConflict:        'user_id,word',   // uses the existing unique index
-      ignoreDuplicates:  true,
+      onConflict:       'user_id,word',
+      ignoreDuplicates: true,
     });
 
   if (insertError) {
     console.error('[diagnostic/finalize] Word insert failed:', insertError);
-    // Non-fatal — still complete the session and return the list
+    // Non-fatal — still complete the session and return the report
   }
 
   // ── Mark session as completed ──────────────────────────────────────────────
@@ -174,5 +191,5 @@ Return ONLY valid JSON — a single array of exactly 10 objects. No explanation,
     .eq('id', sessionId)
     .eq('user_id', user.id);
 
-  return Response.json({ words: recommendations }, { status: 200 });
+  return Response.json(report, { status: 200 });
 }

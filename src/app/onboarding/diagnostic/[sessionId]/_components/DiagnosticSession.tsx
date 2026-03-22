@@ -47,8 +47,11 @@ interface RecommendedWord {
   example:    string;
 }
 
-interface FinalizeResponse {
-  words: RecommendedWord[];
+interface DiagnosticReport {
+  proficiency_level:            string;
+  grammar_and_syntax_feedback:  string;
+  learning_path_recommendation: string;
+  target_words:                 RecommendedWord[];
 }
 
 interface Props {
@@ -142,7 +145,7 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
   const [errorMsg, setErrorMsg]     = useState<string | null>(null);
   const [toastMsg, setToastMsg]     = useState<string | null>(null);
   const [finalizing, setFinalizing] = useState(false);
-  const [wordList, setWordList]     = useState<RecommendedWord[] | null>(null);
+  const [report, setReport]         = useState<DiagnosticReport | null>(null);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
@@ -369,10 +372,10 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
         throw new Error(errBody?.error ?? `Server error ${res.status}`);
       }
 
-      const data = await res.json() as FinalizeResponse;
-      setWordList(data.words);
+      const data = await res.json() as DiagnosticReport;
+      setReport(data);
     } catch (err) {
-      setErrorMsg((err instanceof Error) ? err.message : 'Failed to generate word list. Please try again.');
+      setErrorMsg((err instanceof Error) ? err.message : 'Failed to generate diagnostic report. Please try again.');
       setFinalizing(false);
     }
   }, [sessionId, finalizing]);
@@ -381,7 +384,7 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
   const isProcessing = phase === 'processing';
   const isPlaying    = phase === 'playing';
   const isDisabled   = isProcessing || permission === 'denied' || permission === 'unavailable';
-  const canFinish    = turnCount >= minTurns && phase === 'idle' && !finalizing && !wordList;
+  const canFinish    = turnCount >= minTurns && phase === 'idle' && !finalizing && !report;
 
   const recordLabel =
     isRecording  ? '● Recording' :
@@ -390,13 +393,14 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
     permission === 'denied' ? 'Mic denied' :
     'Hold to speak';
 
-  // ── Word list result view ─────────────────────────────────────────────────
-  if (wordList) {
+  // ── Diagnostic report result view ─────────────────────────────────────────
+  if (report) {
     return (
       <main
         className="min-h-dvh px-4 py-8 md:px-6 md:py-10 max-w-2xl mx-auto w-full"
         style={{ color: 'var(--color-codex-text)' }}
       >
+        {/* ── Header ── */}
         <p
           className="text-xs uppercase tracking-widest mb-2 animate-fade-up"
           style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-teal)' }}
@@ -404,21 +408,63 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
           ✓ Assessment complete
         </p>
         <h1
-          className="font-display text-4xl mb-2 animate-fade-up"
+          className="font-display text-4xl mb-6 animate-fade-up"
           style={{ color: 'var(--color-codex-text)' }}
         >
-          Your Vocabulary List
+          Your Diagnostic Report
         </h1>
-        <p
-          className="text-sm mb-8 animate-fade-up animate-fade-up-delay-1"
-          style={{ color: 'var(--color-codex-muted)' }}
-        >
-          {wordList.length} words selected based on your proficiency and professional background.
-          They've been added to your Word Bank.
-        </p>
 
+        {/* ── Proficiency level ── */}
+        <section
+          className="card p-5 mb-4 animate-fade-up"
+          style={{ borderColor: 'color-mix(in srgb, var(--color-codex-gold) 30%, transparent)' }}
+        >
+          <p
+            className="text-xs uppercase tracking-widest mb-2"
+            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-gold)' }}
+          >
+            Proficiency Level
+          </p>
+          <p className="text-base leading-relaxed" style={{ color: 'var(--color-codex-text)' }}>
+            {report.proficiency_level}
+          </p>
+        </section>
+
+        {/* ── Grammar & syntax feedback ── */}
+        <section className="card p-5 mb-4 animate-fade-up">
+          <p
+            className="text-xs uppercase tracking-widest mb-2"
+            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-teal)' }}
+          >
+            Grammar &amp; Syntax
+          </p>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--color-codex-muted)' }}>
+            {report.grammar_and_syntax_feedback}
+          </p>
+        </section>
+
+        {/* ── Learning path ── */}
+        <section className="card p-5 mb-8 animate-fade-up">
+          <p
+            className="text-xs uppercase tracking-widest mb-2"
+            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-teal)' }}
+          >
+            Learning Path
+          </p>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--color-codex-muted)' }}>
+            {report.learning_path_recommendation}
+          </p>
+        </section>
+
+        {/* ── Word bank ── */}
+        <p
+          className="text-xs uppercase tracking-widest mb-3 animate-fade-up"
+          style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
+        >
+          {report.target_words.length} target words added to your Word Bank
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-          {wordList.map((w) => (
+          {report.target_words.map((w) => (
             <WordPreviewCard key={w.word} word={w} />
           ))}
         </div>

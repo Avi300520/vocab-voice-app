@@ -126,9 +126,99 @@ function WordPreviewCard({ word }: { word: RecommendedWord }) {
         className="text-xs italic"
         style={{ color: 'var(--color-codex-faint)', fontFamily: 'var(--font-display)' }}
       >
-        "{word.example}"
+        &ldquo;{word.example}&rdquo;
       </p>
     </div>
+  );
+}
+
+/** The big central microphone button — identical to VoiceSession RecordButton */
+function RecordButton({
+  phase,
+  permission,
+  onPointerDown,
+  onPointerUp,
+  onPointerLeave,
+}: {
+  phase:          Phase;
+  permission:     MicPermission;
+  onPointerDown:  () => void;
+  onPointerUp:    () => void;
+  onPointerLeave: () => void;
+}) {
+  const isRecording  = phase === 'recording';
+  // 'playing' is intentionally excluded — the button stays enabled so the user
+  // can press it to interrupt the AI mid-sentence.
+  const isProcessing = phase === 'processing';
+  const isPlaying    = phase === 'playing';
+  const isDisabled   = isProcessing || permission === 'denied' || permission === 'unavailable';
+
+  return (
+    <button
+      type="button"
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
+      disabled={isDisabled}
+      aria-label={
+        isRecording  ? 'Recording — release to send' :
+        isProcessing ? 'AI is thinking, please wait' :
+        isPlaying    ? 'Press to interrupt and speak' :
+        permission === 'denied' ? 'Microphone access denied' :
+        'Hold to record'
+      }
+      className="record-button"
+      data-recording={isRecording}
+      data-processing={isProcessing}
+      data-playing={isPlaying}
+      style={{ touchAction: 'none' }}
+    >
+      {/* Outer pulse ring — shown during recording (red) and playing (teal) */}
+      {(isRecording || isPlaying) && (
+        <span
+          className="record-ring"
+          style={isPlaying
+            ? { borderColor: 'var(--color-codex-teal)', animationDuration: '1.4s' }
+            : undefined
+          }
+        />
+      )}
+
+      {/* Inner icon */}
+      <span className="record-icon">
+        {isProcessing ? (
+          // Spinner — hard blocked, nothing the user can do
+          <svg className="animate-spin" width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        ) : isPlaying ? (
+          // Waveform / interrupt icon — indicates audio is playing and tap interrupts
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+            <line x1="3"  y1="12" x2="3"  y2="12" />
+            <line x1="6"  y1="8"  x2="6"  y2="16" />
+            <line x1="9"  y1="5"  x2="9"  y2="19" />
+            <line x1="12" y1="8"  x2="12" y2="16" />
+            <line x1="15" y1="5"  x2="15" y2="19" />
+            <line x1="18" y1="8"  x2="18" y2="16" />
+            <line x1="21" y1="12" x2="21" y2="12" />
+          </svg>
+        ) : isRecording ? (
+          // Recording indicator — pulsing red dot (universal "recording" symbol)
+          <svg className="recording-dot" width="32" height="32" viewBox="0 0 24 24" fill="#F87171">
+            <circle cx="12" cy="12" r="8" />
+          </svg>
+        ) : (
+          // Idle — mic icon
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+            <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="8"  y1="23" x2="16" y2="23" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        )}
+      </span>
+    </button>
   );
 }
 
@@ -380,17 +470,16 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
     }
   }, [sessionId, finalizing]);
 
-  const isRecording  = phase === 'recording';
   const isProcessing = phase === 'processing';
-  const isPlaying    = phase === 'playing';
   const isDisabled   = isProcessing || permission === 'denied' || permission === 'unavailable';
   const canFinish    = turnCount >= minTurns && phase === 'idle' && !finalizing && !report;
 
   const recordLabel =
-    isRecording  ? '● Recording' :
-    isProcessing ? 'Processing…' :
-    isPlaying    ? 'Press to interrupt' :
-    permission === 'denied' ? 'Mic denied' :
+    phase === 'recording'        ? 'Release to send'             :
+    phase === 'processing'       ? 'Thinking…'                   :
+    phase === 'playing'          ? 'Press to interrupt'          :
+    permission === 'denied'      ? 'Mic denied — check settings' :
+    permission === 'unavailable' ? 'No microphone found'         :
     'Hold to speak';
 
   // ── Diagnostic report result view ─────────────────────────────────────────
@@ -584,62 +673,20 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
       )}
 
       {/* ── Mic button area ── */}
-      <div className="flex flex-col items-center gap-4 py-4 animate-fade-up">
-        <button
-          type="button"
+      <div className="flex flex-col items-center gap-3 px-4 pt-4 pb-6 animate-fade-up">
+        {/* Phase label — above the button, matching VoiceSession layout */}
+        <p className="phase-label" data-phase={phase}>
+          {recordLabel}
+        </p>
+
+        {/* The big mic button */}
+        <RecordButton
+          phase={phase}
+          permission={permission}
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
-          disabled={isDisabled || finalizing}
-          aria-label={recordLabel}
-          className="record-button"
-          data-recording={isRecording}
-          data-processing={isProcessing}
-          data-playing={isPlaying}
-          style={{ touchAction: 'none' }}
-        >
-          {(isRecording || isPlaying) && (
-            <span
-              className="record-ring"
-              style={isPlaying ? { borderColor: 'var(--color-codex-teal)', animationDuration: '1.4s' } : undefined}
-            />
-          )}
-          <span className="record-icon">
-            {isProcessing ? (
-              <svg className="animate-spin" width="32" height="32" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
-                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            ) : isPlaying ? (
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
-                <line x1="6" y1="8" x2="6" y2="16" />
-                <line x1="9" y1="5" x2="9" y2="19" />
-                <line x1="12" y1="8" x2="12" y2="16" />
-                <line x1="15" y1="5" x2="15" y2="19" />
-                <line x1="18" y1="8" x2="18" y2="16" />
-              </svg>
-            ) : isRecording ? (
-              <svg className="recording-dot" width="32" height="32" viewBox="0 0 24 24" fill="#F87171">
-                <circle cx="12" cy="12" r="8" />
-              </svg>
-            ) : (
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <line x1="8"  y1="23" x2="16" y2="23" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            )}
-          </span>
-        </button>
-
-        <p
-          className="phase-label"
-          data-phase={phase}
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {recordLabel}
-        </p>
+        />
 
         {/* ── Finish button ── */}
         <button

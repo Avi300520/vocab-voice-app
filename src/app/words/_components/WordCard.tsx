@@ -4,9 +4,11 @@
  * src/app/words/_components/WordCard.tsx
  *
  * Client Component — renders a single word entry as a polished card.
+ * The word title links to /words/[id] for the full detail view.
  * Delete is handled via a bound Server Action form submission.
  */
 
+import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
 import { deleteWord } from '@/app/actions/words';
 import type { WordRow } from '@/lib/supabase/types';
@@ -62,14 +64,25 @@ export default function WordCard({ word }: { word: WordRow }) {
 
   return (
     <article className="card p-5 flex flex-col gap-3 animate-fade-up group">
-      {/* ── Top row: word + status badge ── */}
+      {/* ── Top row: word (links to detail) + status badge ── */}
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h3
-          className="font-display text-2xl leading-tight"
-          style={{ color: 'var(--color-codex-text)' }}
+        <Link
+          href={`/words/${word.id}`}
+          className="no-underline group/word"
         >
-          {word.word}
-        </h3>
+          <h3
+            className="font-display text-2xl leading-tight transition-colors"
+            style={{ color: 'var(--color-codex-text)' }}
+          >
+            {word.word}
+            <span
+              className="ml-1.5 text-base opacity-0 group-hover/word:opacity-60 transition-opacity"
+              style={{ color: 'var(--color-codex-muted)' }}
+            >
+              ↗
+            </span>
+          </h3>
+        </Link>
         <StatusBadge status={word.status} />
       </div>
 

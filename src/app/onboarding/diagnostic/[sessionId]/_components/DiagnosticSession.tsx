@@ -13,7 +13,7 @@
  * the user to /words where they can see their personalised vocabulary list.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useRouter } from 'next/navigation';
 
@@ -132,20 +132,29 @@ function WordPreviewCard({ word }: { word: RecommendedWord }) {
   );
 }
 
-/** The big central microphone button — identical to VoiceSession RecordButton */
-function RecordButton({
-  phase,
-  permission,
-  onPointerDown,
-  onPointerUp,
-  onPointerLeave,
-}: {
+/**
+ * The big central microphone button.
+ *
+ * Implemented as a forwardRef component so the parent can hold a direct ref
+ * to the underlying <button> DOM node.  The parent's setPhase() wrapper uses
+ * that ref to imperatively update data-recording/data-processing/data-playing
+ * on the same JS call-stack tick as the state update — bypassing React's
+ * Concurrent scheduler, which can defer the declarative re-render on Turn 2+
+ * when there is pending work from the previous turn's completion cycle.
+ *
+ * Both the imperative path (instant, every turn) and the declarative path
+ * (React reconciliation, confirms the same values) are active simultaneously.
+ */
+const RecordButton = forwardRef<HTMLButtonElement, {
   phase:          Phase;
   permission:     MicPermission;
   onPointerDown:  () => void;
   onPointerUp:    () => void;
   onPointerLeave: () => void;
-}) {
+}>(function RecordButton(
+  { phase, permission, onPointerDown, onPointerUp, onPointerLeave },
+  ref,
+) {
   const isRecording  = phase === 'recording';
   // 'playing' is intentionally excluded — the button stays enabled so the user
   // can press it to interrupt the AI mid-sentence.
@@ -155,6 +164,7 @@ function RecordButton({
 
   return (
     <button
+      ref={ref}
       type="button"
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
@@ -220,7 +230,7 @@ function RecordButton({
       </span>
     </button>
   );
-}
+});
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -247,12 +257,34 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
   const toastTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phaseRef          = useRef<Phase>('idle');
   const pointerIsDownRef  = useRef(false);
+  /**
+   * Direct ref to the <button> DOM node inside RecordButton.
+   * Used by setPhase() to imperatively update data-* attributes so the CSS
+   * state (red dot, glow, teal waveform) reflects the new phase on the same
+   * JS call-stack tick — bypassing React's Concurrent scheduler which can
+   * defer the declarative re-render when there is pending work from the
+   * previous turn's completion cycle (the Turn 2+ visual regression).
+   */
+  const recordButtonRef   = useRef<HTMLButtonElement>(null);
 
   // ── Stable phase setter ───────────────────────────────────────────────────
+  // ALWAYS call this instead of setPhaseState directly.
+  // Belt-and-suspenders: updates phaseRef (for stale-closure guards),
+  // schedules a declarative React re-render (confirms state for all other UI),
+  // AND imperatively writes the button's data attributes so the visual fires
+  // on the exact same tick — guaranteed on every turn.
   const setPhase = useCallback((p: Phase) => {
     phaseRef.current = p;
     setPhaseState(p);
-  }, []);
+    // Imperative DOM sync — fires before React's next paint regardless of
+    // whether flushSync is in play or the Concurrent scheduler defers the render.
+    const btn = recordButtonRef.current;
+    if (btn) {
+      btn.dataset.recording  = String(p === 'recording');
+      btn.dataset.processing = String(p === 'processing');
+      btn.dataset.playing    = String(p === 'playing');
+    }
+  }, []); // recordButtonRef is a stable ref object — safe to omit from deps
 
   // ── Stop TTS audio ────────────────────────────────────────────────────────
   const stopAudio = useCallback(() => {
@@ -681,6 +713,7 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
 
         {/* The big mic button */}
         <RecordButton
+          ref={recordButtonRef}
           phase={phase}
           permission={permission}
           onPointerDown={handlePointerDown}

@@ -31,7 +31,7 @@
  *   • Phase returns to 'idle' — the user can try again right away.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -189,20 +189,24 @@ function WordPill({ word, detected }: { word: WordRow; detected: boolean }) {
   );
 }
 
-/** The big central microphone button */
-function RecordButton({
-  phase,
-  permission,
-  onPointerDown,
-  onPointerUp,
-  onPointerLeave,
-}: {
+/**
+ * The big central microphone button.
+ *
+ * forwardRef exposes the <button> DOM node to the parent so setPhase() can
+ * write data-recording/data-processing/data-playing imperatively — guaranteeing
+ * the CSS state fires on Turn 2+ even when React's Concurrent scheduler defers
+ * the declarative re-render due to pending work from the previous turn's cycle.
+ */
+const RecordButton = forwardRef<HTMLButtonElement, {
   phase:          Phase;
   permission:     MicPermission;
   onPointerDown:  () => void;
   onPointerUp:    () => void;
   onPointerLeave: () => void;
-}) {
+}>(function RecordButton(
+  { phase, permission, onPointerDown, onPointerUp, onPointerLeave },
+  ref,
+) {
   const isRecording  = phase === 'recording';
   // 'playing' is intentionally excluded — the button stays enabled so the user
   // can press it to interrupt the AI mid-sentence.
@@ -224,6 +228,7 @@ function RecordButton({
         permission === 'denied' ? 'Microphone access denied' :
         'Hold to record'
       }
+      ref={ref}
       className="record-button"
       data-recording={isRecording}
       data-processing={isProcessing}
@@ -277,7 +282,7 @@ function RecordButton({
       </span>
     </button>
   );
-}
+});
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -336,18 +341,38 @@ export default function VoiceSession({
    */
   const pointerIsDownRef   = useRef(false);
   /**
+   * Direct ref to the <button> DOM node inside RecordButton.
+   * Used by setPhase() to imperatively update data-* attributes so the CSS
+   * state (red dot, glow, teal waveform) reflects the new phase on the same
+   * JS call-stack tick — bypassing React's Concurrent scheduler which can
+   * defer the declarative re-render when there is pending work from the
+   * previous turn's completion cycle (the Turn 2+ visual regression).
+   */
+  const recordButtonRef    = useRef<HTMLButtonElement>(null);
+  /**
    * Mirror of the `detectedSet` state held in a ref so `sendAudioBlob` can
    * read the current value without capturing it as a dependency.
    */
   const detectedSetRef     = useRef<Set<string>>(new Set());
 
   // ── Stable phase setter — always call this, never setPhaseState directly ──
-  // Keeps phaseRef in sync with React state so event-handler closures can
-  // read phaseRef.current instead of a stale closure-captured value.
+  // Belt-and-suspenders: updates phaseRef (stale-closure guard), schedules a
+  // declarative React re-render (confirms state for all other UI), AND
+  // imperatively writes the button's data-* attributes so the CSS visual fires
+  // on the exact same JS call-stack tick — guaranteed on every turn regardless
+  // of whether React's Concurrent scheduler defers the declarative re-render.
   const setPhase = useCallback((p: Phase) => {
     phaseRef.current = p;
     setPhaseState(p);
-  }, []);
+    // Imperative DOM sync — fires before React's next paint, bypassing
+    // Concurrent scheduler deferral that causes the Turn 2+ visual regression.
+    const btn = recordButtonRef.current;
+    if (btn) {
+      btn.dataset.recording  = String(p === 'recording');
+      btn.dataset.processing = String(p === 'processing');
+      btn.dataset.playing    = String(p === 'playing');
+    }
+  }, []); // recordButtonRef is a stable ref object — safe to omit from deps
 
   // ── Stop and release the current TTS audio player ────────────────────────
   // Defined before effects so the cleanup effect can reference it safely.
@@ -774,6 +799,7 @@ export default function VoiceSession({
 
             {/* The big mic button */}
             <RecordButton
+              ref={recordButtonRef}
               phase={phase}
               permission={permission}
               onPointerDown={handlePointerDown}

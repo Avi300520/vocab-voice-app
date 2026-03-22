@@ -263,6 +263,21 @@ body {
               0 0 40px color-mix(in srgb, #F87171 10%, transparent);
 }
 
+/* ── Record Button: Pressed state ────────────────────────────────────────────
+ * Decoupled from the async `phase` state machine — fires on the exact JS tick
+ * of onPointerDown via React's synchronous useState update, independent of mic
+ * acquisition, API calls, or the Concurrent scheduler.  Overrides data-playing
+ * (higher specificity via source order) so barge-in taps go red instantly too.
+ * ─────────────────────────────────────────────────────────────────────────── */
+.record-button[data-pressed="true"] {
+  background: color-mix(in srgb, #F87171 15%, var(--color-codex-surface));
+  border-color: #F87171;
+  color: #F87171;
+  transform: scale(1.06);
+  box-shadow: 0 0 20px color-mix(in srgb, #F87171 30%, transparent),
+              0 0 40px color-mix(in srgb, #F87171 10%, transparent);
+}
+
 /* ── Phase label (replaces the inline-styled label above the record button) ── */
 .phase-label {
   font-family: var(--font-mono);

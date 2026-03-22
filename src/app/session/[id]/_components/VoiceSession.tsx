@@ -31,8 +31,7 @@
  *   • Phase returns to 'idle' — the user can try again right away.
  */
 
-import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { completeSession, abandonSession } from '@/app/actions/sessions';
@@ -192,27 +191,33 @@ function WordPill({ word, detected }: { word: WordRow; detected: boolean }) {
 /**
  * The big central microphone button.
  *
- * forwardRef exposes the <button> DOM node to the parent so setPhase() can
- * write data-recording/data-processing/data-playing imperatively — guaranteeing
- * the CSS state fires on Turn 2+ even when React's Concurrent scheduler defers
- * the declarative re-render due to pending work from the previous turn's cycle.
+ * `isPressed` is a decoupled hardware-state boolean that fires synchronously
+ * on the first line of handlePointerDown — giving 0ms visual latency independent
+ * of React's async phase state machine. This eliminates the Turn 2+ visual
+ * regression where the Concurrent scheduler deferred phase updates.
  */
-const RecordButton = forwardRef<HTMLButtonElement, {
+function RecordButton({
+  phase,
+  permission,
+  isPressed,
+  onPointerDown,
+  onPointerUp,
+  onPointerLeave,
+}: {
   phase:          Phase;
   permission:     MicPermission;
+  isPressed:      boolean;
   onPointerDown:  () => void;
   onPointerUp:    () => void;
   onPointerLeave: () => void;
-}>(function RecordButton(
-  { phase, permission, onPointerDown, onPointerUp, onPointerLeave },
-  ref,
-) {
-  const isRecording  = phase === 'recording';
-  // 'playing' is intentionally excluded — the button stays enabled so the user
-  // can press it to interrupt the AI mid-sentence.
-  const isProcessing = phase === 'processing';
-  const isPlaying    = phase === 'playing';
-  const isDisabled   = isProcessing || permission === 'denied' || permission === 'unavailable';
+}) {
+  // isPressed fires synchronously on hardware interaction — drives the red
+  // recording visual with 0ms latency regardless of phase state.
+  const isRecordingVisual = isPressed || phase === 'recording';
+  const isProcessing      = phase === 'processing';
+  // Only show playing state when button is not being pressed (barge-in case).
+  const isPlayingVisual   = phase === 'playing' && !isPressed;
+  const isDisabled        = isProcessing || permission === 'denied' || permission === 'unavailable';
 
   return (
     <button
@@ -222,24 +227,24 @@ const RecordButton = forwardRef<HTMLButtonElement, {
       onPointerLeave={onPointerLeave}
       disabled={isDisabled}
       aria-label={
-        isRecording  ? 'Recording — release to send' :
-        isProcessing ? 'AI is thinking, please wait' :
-        isPlaying    ? 'Press to interrupt and speak' :
+        isRecordingVisual ? 'Recording — release to send' :
+        isProcessing      ? 'AI is thinking, please wait' :
+        isPlayingVisual   ? 'Press to interrupt and speak' :
         permission === 'denied' ? 'Microphone access denied' :
         'Hold to record'
       }
-      ref={ref}
       className="record-button"
-      data-recording={isRecording}
+      data-pressed={isPressed}
+      data-recording={phase === 'recording'}
       data-processing={isProcessing}
-      data-playing={isPlaying}
+      data-playing={isPlayingVisual}
       style={{ touchAction: 'none' }} // Prevent scroll-on-drag on mobile
     >
       {/* Outer pulse ring — shown during recording (red) and playing (teal) */}
-      {(isRecording || isPlaying) && (
+      {(isRecordingVisual || isPlayingVisual) && (
         <span
           className="record-ring"
-          style={isPlaying
+          style={isPlayingVisual
             ? { borderColor: 'var(--color-codex-teal)', animationDuration: '1.4s' }
             : undefined
           }
@@ -254,7 +259,7 @@ const RecordButton = forwardRef<HTMLButtonElement, {
             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
             <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
-        ) : isPlaying ? (
+        ) : isPlayingVisual ? (
           // Waveform / interrupt icon — indicates audio is playing and tap interrupts
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
             <line x1="3"  y1="12" x2="3"  y2="12" />
@@ -265,7 +270,7 @@ const RecordButton = forwardRef<HTMLButtonElement, {
             <line x1="18" y1="8"  x2="18" y2="16" />
             <line x1="21" y1="12" x2="21" y2="12" />
           </svg>
-        ) : isRecording ? (
+        ) : isRecordingVisual ? (
           // Recording indicator — pulsing red dot (universal "recording" symbol)
           <svg className="recording-dot" width="32" height="32" viewBox="0 0 24 24" fill="#F87171">
             <circle cx="12" cy="12" r="8" />
@@ -282,7 +287,7 @@ const RecordButton = forwardRef<HTMLButtonElement, {
       </span>
     </button>
   );
-});
+}
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -310,6 +315,12 @@ export default function VoiceSession({
   const [turnCount, setTurnCount]     = useState(initialTurnCount);
   const [detectionToastWords, setDetectionToastWords] = useState<string[] | null>(null);
   const [isEndingSession, setIsEndingSession] = useState(false);
+  /**
+   * Decoupled hardware-state boolean — set synchronously on the first line of
+   * handlePointerDown so the red recording visual fires with 0ms latency,
+   * independent of React's async phase state machine.
+   */
+  const [isPressed, setIsPressed]     = useState(false);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const mediaRecorderRef   = useRef<MediaRecorder | null>(null);
@@ -341,38 +352,19 @@ export default function VoiceSession({
    */
   const pointerIsDownRef   = useRef(false);
   /**
-   * Direct ref to the <button> DOM node inside RecordButton.
-   * Used by setPhase() to imperatively update data-* attributes so the CSS
-   * state (red dot, glow, teal waveform) reflects the new phase on the same
-   * JS call-stack tick — bypassing React's Concurrent scheduler which can
-   * defer the declarative re-render when there is pending work from the
-   * previous turn's completion cycle (the Turn 2+ visual regression).
-   */
-  const recordButtonRef    = useRef<HTMLButtonElement>(null);
-  /**
    * Mirror of the `detectedSet` state held in a ref so `sendAudioBlob` can
    * read the current value without capturing it as a dependency.
    */
   const detectedSetRef     = useRef<Set<string>>(new Set());
 
   // ── Stable phase setter — always call this, never setPhaseState directly ──
-  // Belt-and-suspenders: updates phaseRef (stale-closure guard), schedules a
-  // declarative React re-render (confirms state for all other UI), AND
-  // imperatively writes the button's data-* attributes so the CSS visual fires
-  // on the exact same JS call-stack tick — guaranteed on every turn regardless
-  // of whether React's Concurrent scheduler defers the declarative re-render.
+  // Keeps phaseRef in sync (stale-closure guard) and schedules a declarative
+  // React re-render. Visual feedback is driven by the `isPressed` state
+  // (set synchronously in handlePointerDown) — no imperative DOM needed.
   const setPhase = useCallback((p: Phase) => {
     phaseRef.current = p;
     setPhaseState(p);
-    // Imperative DOM sync — fires before React's next paint, bypassing
-    // Concurrent scheduler deferral that causes the Turn 2+ visual regression.
-    const btn = recordButtonRef.current;
-    if (btn) {
-      btn.dataset.recording  = String(p === 'recording');
-      btn.dataset.processing = String(p === 'processing');
-      btn.dataset.playing    = String(p === 'playing');
-    }
-  }, []); // recordButtonRef is a stable ref object — safe to omit from deps
+  }, []);
 
   // ── Stop and release the current TTS audio player ────────────────────────
   // Defined before effects so the cleanup effect can reference it safely.
@@ -458,6 +450,10 @@ export default function VoiceSession({
   // still a suspension point).  Without this guard, the recorder would start
   // after the pointer is already up, run forever, and lock phase='recording'.
   const handlePointerDown = useCallback(async () => {
+    // Hardware-state update — fires synchronously before any guard logic so the
+    // red recording visual appears with 0ms latency on every press.
+    setIsPressed(true);
+
     // Read live phase from ref — never from a stale closure.
     const currentPhase = phaseRef.current;
 
@@ -482,11 +478,10 @@ export default function VoiceSession({
       stopAudio();
     }
 
-    // ── Set recording state IMMEDIATELY (before any async work) ─────────────
-    // flushSync forces React to commit the DOM update synchronously so the
-    // red dot and data-recording attribute appear on every press — including
-    // turn 2 and beyond — before the microtask suspension point below.
-    flushSync(() => setPhase('recording'));
+    // ── Set recording phase (before any async work) ──────────────────────────
+    // isPressed (above) already drives the red visual synchronously.
+    // setPhase schedules the declarative re-render for all other UI.
+    setPhase('recording');
 
     const stream = await acquireMic();
 
@@ -604,7 +599,10 @@ export default function VoiceSession({
 
       // Single cleanup handler — runs on natural end, error, or play() rejection.
       // Clears src so the browser can release the data URL from memory.
+      // Guard: if the user pressed the button while audio was ending, the phase
+      // is already 'recording' — do not overwrite it with 'idle'.
       const onDone = () => {
+        if (pointerIsDownRef.current) return;
         audio.src = '';
         audioPlayerRef.current = null;
         setPhase('idle');
@@ -621,7 +619,9 @@ export default function VoiceSession({
 
   // ── Stop recording and conditionally send ─────────────────────────────────
   const handlePointerUp = useCallback(() => {
-    // Always clear the down flag first — this is the canonical "pointer released"
+    // Clear hardware visual immediately — synchronous, 0ms latency.
+    setIsPressed(false);
+    // Always clear the down flag — this is the canonical "pointer released"
     // signal that handlePointerDown checks after its await gap.
     pointerIsDownRef.current = false;
 
@@ -658,11 +658,11 @@ export default function VoiceSession({
   const totalWords = wordBank.length;
 
   const recordLabel =
-    phase === 'recording'        ? 'Release to send'                :
-    phase === 'processing'       ? 'Thinking…'                      :
-    phase === 'playing'          ? 'Press to interrupt'             :
-    permission === 'denied'      ? 'Mic denied — check settings'    :
-    permission === 'unavailable' ? 'No microphone found'            :
+    isPressed || phase === 'recording' ? 'Release to send'             :
+    phase === 'processing'             ? 'Thinking…'                   :
+    phase === 'playing'                ? 'Press to interrupt'          :
+    permission === 'denied'            ? 'Mic denied — check settings' :
+    permission === 'unavailable'       ? 'No microphone found'         :
     'Hold to speak';
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -799,9 +799,9 @@ export default function VoiceSession({
 
             {/* The big mic button */}
             <RecordButton
-              ref={recordButtonRef}
               phase={phase}
               permission={permission}
+              isPressed={isPressed}
               onPointerDown={handlePointerDown}
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}

@@ -248,3 +248,76 @@ body {
   0%, 100% { transform: translateY(0);     opacity: 0.4; }
   50%       { transform: translateY(-8px); opacity: 1; }
 }
+
+/* ── Record Button: Playing state (was missing) ────────────────────────────── */
+.record-button[data-playing="true"] {
+  background: color-mix(in srgb, var(--color-codex-teal) 12%, var(--color-codex-surface));
+  border-color: var(--color-codex-teal);
+  color: var(--color-codex-teal);
+  transform: scale(1.04);
+}
+
+/* ── Record Button: Enhanced recording glow ────────────────────────────────── */
+.record-button[data-recording="true"] {
+  box-shadow: 0 0 20px color-mix(in srgb, #F87171 30%, transparent),
+              0 0 40px color-mix(in srgb, #F87171 10%, transparent);
+}
+
+/* ── Phase label (replaces the inline-styled label above the record button) ── */
+.phase-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  height: 1.25rem;
+  transition: color 0.15s ease;
+}
+.phase-label[data-phase="recording"]  { color: #F87171; animation: labelPulse 1s ease-in-out infinite; }
+.phase-label[data-phase="processing"] { color: var(--color-codex-teal); }
+.phase-label[data-phase="playing"]    { color: var(--color-codex-teal); }
+.phase-label[data-phase="idle"]       { color: var(--color-codex-faint); }
+
+@keyframes labelPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+/* ── Recording elapsed timer ───────────────────────────────────────────────── */
+.recording-timer {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #F87171;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  animation: labelPulse 1s ease-in-out infinite;
+}
+
+/* ── Recording dot pulse (the red circle icon inside the button) ───────────── */
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.65; transform: scale(0.88); }
+}
+.recording-dot { animation: dotPulse 1s ease-in-out infinite; }
+
+/* ── Detection toast ───────────────────────────────────────────────────────── */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeOutRight {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(20px); }
+}
+.detection-toast {
+  animation: slideInRight 0.25s var(--ease-card) both;
+}
+.detection-toast.dismissing {
+  animation: fadeOutRight 0.3s var(--ease-card) both;
+}
+
+/* ── Mastery state badges (extends existing badge pattern) ─────────────────── */
+.badge-passive      { color: var(--color-codex-faint);       background: color-mix(in srgb, var(--color-codex-faint) 14%, transparent);       border: 1px solid color-mix(in srgb, var(--color-codex-faint) 32%, transparent); }
+.badge-stable       { color: var(--color-codex-teal);        background: color-mix(in srgb, var(--color-codex-teal) 14%, transparent);        border: 1px solid color-mix(in srgb, var(--color-codex-teal) 32%, transparent); }
+.badge-needs_review { color: #F87171;                        background: color-mix(in srgb, #F87171 14%, transparent);                        border: 1px solid color-mix(in srgb, #F87171 32%, transparent); }

@@ -9,6 +9,13 @@
 import { redirect } from 'next/navigation';
 import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { createClient } from '@/lib/supabase/server';
+import type {
+  SessionRow,
+  SessionMessageRow,
+  SemanticEvaluationRow,
+  SessionWordRow,
+  WordRow,
+} from '@/lib/supabase/types';
 
 // ── Shared state type for useActionState consumers ────────────────────────────
 export type CreateSessionState = { error: string | null };
@@ -108,7 +115,8 @@ export async function completeSession(sessionId: string): Promise<void> {
     .eq('id', sessionId)
     .eq('user_id', user.id);
 
-  redirect('/dashboard');
+  // No redirect() here — the Client Component handles navigation via useRouter
+  // so that startTransition can properly manage the loading state.
 }
 
 // ── Abandon a session (user left early) ──────────────────────────────────────
@@ -127,5 +135,85 @@ export async function abandonSession(sessionId: string): Promise<void> {
     .eq('id', sessionId)
     .eq('user_id', user.id);
 
-  redirect('/dashboard');
+  // No redirect() here — the Client Component handles navigation via useRouter.
+}
+
+// ── Session summary data (used by the post-session summary page) ─────────────
+
+export type SessionSummaryData = {
+  session: SessionRow;
+  messages: SessionMessageRow[];
+  evaluations: (SemanticEvaluationRow & { word_text: string })[];
+  sessionWords: (SessionWordRow & { word_text: string })[];
+};
+
+export async function getSessionSummaryData(
+  sessionId: string,
+): Promise<SessionSummaryData | null> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) return null;
+
+  // Parallel fetch: session, messages, evaluations, session_words, words (for names)
+  const [sessionRes, messagesRes, evalsRes, swRes, wordsRes] = await Promise.all([
+    supabase
+      .from('sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .eq('user_id', user.id)
+      .single<SessionRow>(),
+    supabase
+      .from('session_messages')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('turn_index', { ascending: true })
+      .order('role', { ascending: true })
+      .returns<SessionMessageRow[]>(),
+    supabase
+      .from('semantic_evaluations')
+      .select('*')
+      .eq('session_id', sessionId)
+      .eq('user_id', user.id)
+      .order('turn_index', { ascending: true })
+      .returns<SemanticEvaluationRow[]>(),
+    supabase
+      .from('session_words')
+      .select('*')
+      .eq('session_id', sessionId)
+      .eq('user_id', user.id)
+      .returns<SessionWordRow[]>(),
+    supabase
+      .from('words')
+      .select('id, word')
+      .eq('user_id', user.id)
+      .returns<Pick<WordRow, 'id' | 'word'>[]>(),
+  ]);
+
+  if (sessionRes.error || !sessionRes.data) return null;
+
+  // Build a word-id → word-text lookup
+  const wordLookup = new Map(
+    (wordsRes.data ?? []).map((w) => [w.id, w.word]),
+  );
+
+  const evaluations = (evalsRes.data ?? []).map((e) => ({
+    ...e,
+    word_text: wordLookup.get(e.word_id) ?? '(unknown)',
+  }));
+
+  const sessionWords = (swRes.data ?? []).map((sw) => ({
+    ...sw,
+    word_text: wordLookup.get(sw.word_id) ?? '(unknown)',
+  }));
+
+  return {
+    session: sessionRes.data,
+    messages: messagesRes.data ?? [],
+    evaluations,
+    sessionWords,
+  };
 }

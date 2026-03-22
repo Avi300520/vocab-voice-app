@@ -32,10 +32,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { completeSession, abandonSession } from '@/app/actions/sessions';
 import type { WordRow } from '@/lib/supabase/types';
 import type { TurnResponse } from '@/app/api/sessions/[sessionId]/turn/route';
+import DetectionToast from './DetectionToast';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -44,6 +47,9 @@ const MIN_RECORDING_MS = 1000;
 
 /** How long the "hold longer" toast stays visible. */
 const TOAST_DURATION_MS = 2200;
+
+/** Abort the /turn API call if it takes longer than this. */
+const API_TIMEOUT_MS = 20_000;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -254,8 +260,13 @@ function RecordButton({
             <line x1="18" y1="8"  x2="18" y2="16" />
             <line x1="21" y1="12" x2="21" y2="12" />
           </svg>
+        ) : isRecording ? (
+          // Recording indicator — pulsing red dot (universal "recording" symbol)
+          <svg className="recording-dot" width="32" height="32" viewBox="0 0 24 24" fill="#F87171">
+            <circle cx="12" cy="12" r="8" />
+          </svg>
         ) : (
-          // Mic icon — idle or recording
+          // Idle — mic icon
           <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4z" />
             <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
@@ -277,14 +288,22 @@ export default function VoiceSession({
   wordBank,
   initialTurnCount,
 }: Props) {
+  // ── Router ───────────────────────────────────────────────────────────────
+  const router = useRouter();
+
   // ── State ──────────────────────────────────────────────────────────────────
-  const [phase, setPhase]             = useState<Phase>('idle');
+  /**
+   * `setPhaseState` is the raw React setter — do NOT call it directly.
+   * Always call `setPhase` (defined below) so that `phaseRef` stays in sync.
+   */
+  const [phase, setPhaseState]        = useState<Phase>('idle');
   const [permission, setPermission]   = useState<MicPermission>('prompt');
   const [turns, setTurns]             = useState<TurnEntry[]>([]);
   const [detectedSet, setDetectedSet] = useState<Set<string>>(new Set());
   const [errorMsg, setErrorMsg]       = useState<string | null>(null);
   const [toastMsg, setToastMsg]       = useState<string | null>(null);
   const [turnCount, setTurnCount]     = useState(initialTurnCount);
+  const [detectionToastWords, setDetectionToastWords] = useState<string[] | null>(null);
   const [isEndingSession, setIsEndingSession] = useState(false);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
@@ -297,6 +316,38 @@ export default function VoiceSession({
   const recordingStartRef  = useRef<number>(0);
   /** Timer ID for the auto-dismissing toast. */
   const toastTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Mirror of `phase` state held in a ref so callbacks can read the
+   * current phase without closing over a stale value.
+   *
+   * Problem this solves: `handlePointerDown` has `phase` in its dep array.
+   * Each time phase changes, React recreates the callback with the new value
+   * in its closure.  If the user presses again while phase='recording' is
+   * already in the closure (from a previous stalled recording), the guard
+   * returns early and the button appears unresponsive.  By reading
+   * `phaseRef.current` instead, the guard always sees the live value.
+   */
+  const phaseRef           = useRef<Phase>('idle');
+  /**
+   * Set to `true` on pointerdown and `false` on pointerup/leave.
+   * Checked after `await acquireMic()` to detect the race where the user
+   * releases the button during the microtask gap — in that case we abort
+   * instead of starting a recorder that will run forever.
+   */
+  const pointerIsDownRef   = useRef(false);
+  /**
+   * Mirror of the `detectedSet` state held in a ref so `sendAudioBlob` can
+   * read the current value without capturing it as a dependency.
+   */
+  const detectedSetRef     = useRef<Set<string>>(new Set());
+
+  // ── Stable phase setter — always call this, never setPhaseState directly ──
+  // Keeps phaseRef in sync with React state so event-handler closures can
+  // read phaseRef.current instead of a stale closure-captured value.
+  const setPhase = useCallback((p: Phase) => {
+    phaseRef.current = p;
+    setPhaseState(p);
+  }, []);
 
   // ── Stop and release the current TTS audio player ────────────────────────
   // Defined before effects so the cleanup effect can reference it safely.
@@ -372,25 +423,59 @@ export default function VoiceSession({
   }, []);
 
   // ── Start recording (or interrupt playback and start recording) ───────────
+  //
+  // Uses phaseRef.current for all guard checks so the closure never goes stale
+  // between turns — removing `phase` from the dep array makes this callback
+  // stable for the lifetime of the component.
+  //
+  // Uses pointerIsDownRef to detect the race where pointerup fires during
+  // the `await acquireMic()` microtask gap (instant for cached stream, but
+  // still a suspension point).  Without this guard, the recorder would start
+  // after the pointer is already up, run forever, and lock phase='recording'.
   const handlePointerDown = useCallback(async () => {
-    // 'processing': Whisper + LLM are in-flight — the network request cannot be
-    //   cancelled mid-flight, so block here.
-    // 'recording':  Already capturing — a second pointerdown is a no-op.
-    if (phase === 'processing' || phase === 'recording') return;
+    // Read live phase from ref — never from a stale closure.
+    const currentPhase = phaseRef.current;
+
+    // 'processing': Whisper + LLM are in-flight — cannot be cancelled.
+    // 'recording':  Already capturing — second pointerdown is a no-op.
+    if (currentPhase === 'processing' || currentPhase === 'recording') return;
+
+    // Snapshot whether we are interrupting playback BEFORE any await.
+    // This lets the race-condition guard below skip the pointerIsDownRef
+    // check for the barge-in path — a quick tap to interrupt audio fires
+    // pointerup almost instantly, which would otherwise cancel the recording.
+    const wasPlaying = currentPhase === 'playing';
+
+    // Mark pointer as down immediately (before any await).
+    pointerIsDownRef.current = true;
 
     setErrorMsg(null);
     setToastMsg(null);
 
     // ── Interrupt active TTS playback ────────────────────────────────────────
-    // If the AI is speaking, halt it immediately so recording starts without
-    // delay. stopAudio() detaches event handlers first to prevent a stale
-    // setPhase('idle') from firing after we've already moved to 'recording'.
-    if (phase === 'playing') {
+    if (wasPlaying) {
       stopAudio();
     }
 
+    // ── Set recording state IMMEDIATELY (before any async work) ─────────────
+    // flushSync forces React to commit the DOM update synchronously so the
+    // red dot and data-recording attribute appear on every press — including
+    // turn 2 and beyond — before the microtask suspension point below.
+    flushSync(() => setPhase('recording'));
+
     const stream = await acquireMic();
-    if (!stream) return;
+
+    // ── Race condition guard ─────────────────────────────────────────────────
+    // If the pointer was released while acquireMic() was suspended, abort —
+    // UNLESS this was a barge-in tap (wasPlaying). For barge-in the user
+    // intentionally pressed and released quickly to stop the AI; the pointer
+    // being up does NOT mean "cancel the recording". For idle→recording the
+    // pointer being up means the user already let go before the mic opened,
+    // so we correctly discard rather than starting a recorder with no audio.
+    if (!stream || (!wasPlaying && !pointerIsDownRef.current)) {
+      setPhase('idle');
+      return;
+    }
 
     const mimeType = getPreferredMimeType();
     let recorder: MediaRecorder;
@@ -398,6 +483,7 @@ export default function VoiceSession({
       recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     } catch {
       setErrorMsg('MediaRecorder is not supported in this browser.');
+      setPhase('idle');
       return;
     }
 
@@ -407,10 +493,10 @@ export default function VoiceSession({
     };
 
     mediaRecorderRef.current = recorder;
-    recordingStartRef.current = Date.now(); // stamp the exact start time
-    recorder.start(100); // Collect chunks every 100ms
-    setPhase('recording');
-  }, [phase, acquireMic, stopAudio]);
+    recordingStartRef.current = Date.now();
+    recorder.start(100);
+    // Phase is already 'recording' — no second setState needed.
+  }, [acquireMic, stopAudio, setPhase]); // stable — no phase dep
 
   // ── Send audio to the turn API ─────────────────────────────────────────────
   // Defined BEFORE handlePointerUp so it is initialised when handlePointerUp's
@@ -421,12 +507,18 @@ export default function VoiceSession({
     const formData = new FormData();
     formData.append('audio', blob, 'recording.webm');
 
+    // ── AbortController: timeout after API_TIMEOUT_MS ─────────────────────
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
     let data: TurnResponse;
     try {
       const res = await fetch(`/api/sessions/${sessionId}/turn`, {
         method: 'POST',
         body:   formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
@@ -435,8 +527,13 @@ export default function VoiceSession({
 
       data = await res.json() as TurnResponse;
     } catch (err: unknown) {
-      const msg = (err instanceof Error) ? err.message : 'Network error. Please try again.';
-      setErrorMsg(msg);
+      clearTimeout(timeoutId);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setErrorMsg('Request timed out — the server took too long. Tap the mic to try again.');
+      } else {
+        const msg = (err instanceof Error) ? err.message : 'Network error. Please try again.';
+        setErrorMsg(msg);
+      }
       setPhase('idle');
       return;
     }
@@ -450,13 +547,26 @@ export default function VoiceSession({
       { role: 'assistant', text: data.reply_text,  turnIndex: data.turn_index },
     ]);
 
-    // ── Mark detected words ───────────────────────────────────────────────
+    // ── Mark detected words + show detection toast ────────────────────────
+    // Use detectedSetRef (not state) to identify *newly* detected words so
+    // this callback doesn't need detectedSet in its dep array — keeping it
+    // stable across turns and preventing stale-closure bugs.
     if (data.detected_words.length > 0) {
+      const newlyDetected = data.detected_words.filter(
+        (w) => !detectedSetRef.current.has(w.toLowerCase()),
+      );
+
+      // Keep both the ref and state in sync.
+      data.detected_words.forEach((w) => detectedSetRef.current.add(w.toLowerCase()));
       setDetectedSet((prev) => {
         const next = new Set(prev);
         data.detected_words.forEach((w) => next.add(w.toLowerCase()));
         return next;
       });
+
+      if (newlyDetected.length > 0) {
+        setDetectionToastWords(newlyDetected);
+      }
     }
 
     setTurnCount(data.turn_index);
@@ -480,10 +590,16 @@ export default function VoiceSession({
     } else {
       setPhase('idle');
     }
-  }, [sessionId]);
+  // detectedSet intentionally excluded — we read detectedSetRef instead
+  // so this callback stays stable across turns (only re-created on sessionId change).
+  }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Stop recording and conditionally send ─────────────────────────────────
   const handlePointerUp = useCallback(() => {
+    // Always clear the down flag first — this is the canonical "pointer released"
+    // signal that handlePointerDown checks after its await gap.
+    pointerIsDownRef.current = false;
+
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state === 'inactive') return;
 
@@ -561,11 +677,18 @@ export default function VoiceSession({
           >
             Turn {turnCount}
           </span>
-          <form action={abandonSession.bind(null, sessionId)}>
-            <button type="submit" className="btn-ghost text-xs">
-              ✕ End
-            </button>
-          </form>
+          <button
+            type="button"
+            className="btn-ghost text-xs"
+            disabled={isEndingSession}
+            onClick={async () => {
+              setIsEndingSession(true);
+              await abandonSession(sessionId);
+              router.push(`/session/${sessionId}/summary`);
+            }}
+          >
+            {isEndingSession ? '…' : '✕ End'}
+          </button>
         </div>
       </header>
 
@@ -645,17 +768,7 @@ export default function VoiceSession({
             style={{ borderTop: '1px solid var(--color-codex-border)' }}
           >
             {/* Phase label */}
-            <p
-              className="text-xs uppercase tracking-widest h-4"
-              style={{
-                fontFamily: 'var(--font-mono)',
-                color:
-                  phase === 'recording'  ? '#F87171' :
-                  phase === 'processing' || phase === 'playing' ? 'var(--color-codex-teal)' :
-                  permission === 'denied' ? '#F87171' :
-                  'var(--color-codex-faint)',
-              }}
-            >
+            <p className="phase-label" data-phase={phase}>
               {recordLabel}
             </p>
 
@@ -686,6 +799,14 @@ export default function VoiceSession({
               </p>
             )}
 
+            {/* Detection toast — shows newly detected words after a turn */}
+            {detectionToastWords && (
+              <DetectionToast
+                words={detectionToastWords}
+                onDismiss={() => setDetectionToastWords(null)}
+              />
+            )}
+
             {/* Mic permission help */}
             {permission === 'denied' && (
               <p
@@ -697,20 +818,18 @@ export default function VoiceSession({
             )}
 
             {/* End session button */}
-            <form
-              action={async () => {
+            <button
+              type="button"
+              className="btn-ghost text-xs"
+              disabled={isEndingSession || phase !== 'idle'}
+              onClick={async () => {
                 setIsEndingSession(true);
                 await completeSession(sessionId);
+                router.push(`/session/${sessionId}/summary`);
               }}
             >
-              <button
-                type="submit"
-                className="btn-ghost text-xs"
-                disabled={isEndingSession || phase !== 'idle'}
-              >
-                {isEndingSession ? '…Saving session' : '✓ Complete Session'}
-              </button>
-            </form>
+              {isEndingSession ? '…Saving session' : '✓ Complete Session'}
+            </button>
           </div>
         </main>
 

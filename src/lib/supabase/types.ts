@@ -13,9 +13,24 @@
  *   npx supabase gen types typescript --project-id csheolzcojsogokdxhvr > src/lib/supabase/types.ts
  */
 
-// ─── Enum ───────────────────────────────────────────────────────────────────
+// ─── Enums ──────────────────────────────────────────────────────────────────
 
 export type WordStatus = 'new' | 'practicing' | 'mastered';
+
+export type EvaluationLabel =
+  | 'used_correct'
+  | 'used_partially_correct'
+  | 'used_incorrect'
+  | 'mentioned_not_used'
+  | 'not_used_false_positive'
+  | 'ambiguous';
+
+export type MasteryState =
+  | 'passive'
+  | 'practicing'
+  | 'stable'
+  | 'mastered'
+  | 'needs_review';
 
 // ─── Row types (shape returned by SELECT *) ──────────────────────────────────
 
@@ -72,6 +87,7 @@ export type SessionMessageRow = {
   turn_index: number;
   audio_duration_ms: number | null;
   detected_words: string[];
+  word_timestamps: Record<string, unknown>[] | null;
   metadata: Record<string, unknown>;
 };
 
@@ -84,6 +100,37 @@ export type SessionWordRow = {
   used_at: string | null;
   turn_index: number | null;
   context: string | null;
+};
+
+export type SemanticEvaluationRow = {
+  id: string;
+  session_id: string;
+  turn_index: number;
+  word_id: string;
+  user_id: string;
+  label: EvaluationLabel;
+  confidence_score: number;
+  credited: boolean;
+  evidence_used: string;
+  diagnostic: string;
+  learner_feedback: string | null;
+  created_at: string;
+};
+
+export type WordMasteryRow = {
+  id: string;
+  user_id: string;
+  word_id: string;
+  state: MasteryState;
+  stability: number;
+  difficulty: number;
+  retrievability: number;
+  success_count: number;
+  fail_count: number;
+  last_reviewed_at: string | null;
+  next_review_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 // ─── Insert types (required fields required; DB-defaulted fields optional) ────
@@ -137,6 +184,7 @@ export type SessionMessageInsert = {
   turn_index: number;
   audio_duration_ms?: number | null;
   detected_words?: string[];
+  word_timestamps?: Record<string, unknown>[] | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -195,6 +243,7 @@ export type SessionMessageUpdate = {
   turn_index?: number;
   audio_duration_ms?: number | null;
   detected_words?: string[];
+  word_timestamps?: Record<string, unknown>[] | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -203,6 +252,45 @@ export type SessionWordUpdate = {
   used_at?: string | null;
   turn_index?: number | null;
   context?: string | null;
+};
+
+export type SemanticEvaluationInsert = {
+  id?: string;
+  session_id: string;
+  turn_index: number;
+  word_id: string;
+  user_id: string;
+  label: EvaluationLabel;
+  confidence_score: number;
+  credited: boolean;
+  evidence_used: string;
+  diagnostic: string;
+  learner_feedback?: string | null;
+};
+
+export type WordMasteryInsert = {
+  id?: string;
+  user_id: string;
+  word_id: string;
+  state?: MasteryState;
+  stability?: number;
+  difficulty?: number;
+  retrievability?: number;
+  success_count?: number;
+  fail_count?: number;
+  last_reviewed_at?: string | null;
+  next_review_at?: string | null;
+};
+
+export type WordMasteryUpdate = {
+  state?: MasteryState;
+  stability?: number;
+  difficulty?: number;
+  retrievability?: number;
+  success_count?: number;
+  fail_count?: number;
+  last_reviewed_at?: string | null;
+  next_review_at?: string | null;
 };
 
 // ─── Database (top-level generic for Supabase client) ───────────────────────
@@ -246,6 +334,18 @@ export type Database = {
         Update: SessionWordUpdate;
         Relationships: [];
       };
+      semantic_evaluations: {
+        Row: SemanticEvaluationRow;
+        Insert: SemanticEvaluationInsert;
+        Update: never;
+        Relationships: [];
+      };
+      word_mastery: {
+        Row: WordMasteryRow;
+        Insert: WordMasteryInsert;
+        Update: WordMasteryUpdate;
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -260,17 +360,40 @@ export type Database = {
        */
       insert_session_turn: {
         Args: {
-          p_session_id:     string;
-          p_user_id:        string;
-          p_transcript:     string;
-          p_reply_text:     string;
-          p_detected_words: string[];
+          p_session_id:      string;
+          p_user_id:         string;
+          p_transcript:      string;
+          p_reply_text:      string;
+          p_detected_words:  string[];
+          p_word_timestamps?: Record<string, unknown>[] | null;
         };
         Returns: number;
+      };
+      /**
+       * Atomically inserts a semantic evaluation and updates the word_mastery
+       * FSRS state. Called exclusively from the semantic-worker Edge Function
+       * via service_role. Returns the evaluation UUID.
+       */
+      process_evaluation_result: {
+        Args: {
+          p_session_id:       string;
+          p_user_id:          string;
+          p_turn_index:       number;
+          p_word_id:          string;
+          p_label:            EvaluationLabel;
+          p_confidence:       number;
+          p_should_credit:    boolean;
+          p_evidence:         string;
+          p_diagnostic:       string;
+          p_learner_feedback?: string | null;
+        };
+        Returns: string;
       };
     };
     Enums: {
       word_status: WordStatus;
+      evaluation_label: EvaluationLabel;
+      mastery_state: MasteryState;
     };
     CompositeTypes: {
       [_ in never]: never;

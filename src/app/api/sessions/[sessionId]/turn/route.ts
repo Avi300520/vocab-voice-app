@@ -131,12 +131,16 @@ export async function POST(
   // The native File object (from FormData) satisfies the SDK's Uploadable type
   // directly — no toFile() wrapper needed.
   let transcript: string;
+  let wordTimestamps: Record<string, unknown>[] = [];
   try {
     const transcription = await openai.audio.transcriptions.create({
       file:  audioFile,
       model: 'whisper-1',
+      response_format: 'verbose_json',
+      timestamp_granularities: ['word'],
     });
     transcript = transcription.text.trim();
+    wordTimestamps = (transcription.words ?? []) as unknown as Record<string, unknown>[];
 
     if (!transcript) {
       return Response.json(
@@ -270,11 +274,12 @@ export async function POST(
 
     // ── DB persist ───────────────────────────────────────────────────────────
     supabase.rpc('insert_session_turn', {
-      p_session_id:     sessionId,
-      p_user_id:        user.id,
-      p_transcript:     transcript,
-      p_reply_text:     replyText,
-      p_detected_words: detectedWords,
+      p_session_id:      sessionId,
+      p_user_id:         user.id,
+      p_transcript:      transcript,
+      p_reply_text:      replyText,
+      p_detected_words:  detectedWords,
+      p_word_timestamps: wordTimestamps,
     }),
   ]);
 

@@ -14,7 +14,7 @@ import type { ProfileRow, WordRow } from '@/lib/supabase/types';
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session?: string }>;
+  searchParams: Promise<{ session?: string; ended?: string }>;
 }) {
   const supabase = await createClient();
   const params   = await searchParams;

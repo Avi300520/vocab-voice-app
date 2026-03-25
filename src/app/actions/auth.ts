@@ -87,3 +87,63 @@ export async function signOut() {
   await supabase.auth.signOut();
   redirect('/login');
 }
+
+// ─── Request Password Reset ───────────────────────────────────────────────────
+/**
+ * Sends a Supabase password-reset email.
+ * The email contains a PKCE link that redirects to /auth/callback?next=/reset-password,
+ * where the code is exchanged for a temporary recovery session before the
+ * user lands on /reset-password to set their new password.
+ *
+ * Always redirects to the same success message regardless of whether the
+ * email is registered — prevents user enumeration.
+ */
+export async function requestPasswordReset(formData: FormData) {
+  const supabase = await createClient();
+  const email    = (formData.get('email') as string).trim();
+
+  if (!email) {
+    redirect('/forgot-password?error=Email+is+required.');
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password`,
+  });
+
+  if (error) {
+    console.error('[requestPasswordReset] Supabase error:', error.message);
+    // Still redirect to the success message to avoid leaking whether the email exists.
+  }
+
+  redirect(
+    '/forgot-password?message=If+that+email+is+registered,+a+reset+link+has+been+sent.',
+  );
+}
+
+// ─── Update Password ──────────────────────────────────────────────────────────
+/**
+ * Called from /reset-password after /auth/callback has exchanged the PKCE code
+ * and established a temporary recovery session.
+ * Validates that both password fields match before calling updateUser.
+ */
+export async function updatePassword(formData: FormData) {
+  const supabase        = await createClient();
+  const password        =  formData.get('password')         as string;
+  const confirmPassword =  formData.get('confirm_password') as string;
+
+  if (!password || password.length < 8) {
+    redirect('/reset-password?error=Password+must+be+at+least+8+characters.');
+  }
+
+  if (password !== confirmPassword) {
+    redirect('/reset-password?error=Passwords+do+not+match.');
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    redirect(`/reset-password?error=${encodeURIComponent(error.message)}`);
+  }
+
+  redirect('/dashboard?message=Password+updated+successfully.');
+}

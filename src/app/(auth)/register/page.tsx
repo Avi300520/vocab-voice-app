@@ -32,7 +32,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
 
         {/* Error message */}
         {error && (
-          <div className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div role="alert" className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
           </div>
         )}
@@ -48,7 +48,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
               type="text"
               required
               autoComplete="name"
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -62,7 +62,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
               type="email"
               required
               autoComplete="email"
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -77,9 +77,9 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
               required
               minLength={8}
               autoComplete="new-password"
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-            <p className="mt-1 text-xs text-gray-400">Minimum 8 characters</p>
+            <p className="mt-1 text-xs text-gray-500">Minimum 8 characters</p>
           </div>
 
           <div>
@@ -91,7 +91,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
               name="proficiency"
               required
               defaultValue="intermediate"
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="intermediate">Intermediate</option>
               <option value="advanced">Advanced</option>

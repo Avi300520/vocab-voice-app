@@ -1,0 +1,2 @@
+[functions.semantic-worker]
+verify_jwt = false

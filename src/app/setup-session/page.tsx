@@ -2,13 +2,12 @@
  * src/app/setup-session/page.tsx
  *
  * Protected Server Component — Session Setup / Topic Selection.
- * Renders the curated intellectual topic grid.
- * Actual session creation is handled by the createSession Server Action.
  */
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import CustomTopicForm from './_components/CustomTopicForm';
 import TopicGrid from './_components/TopicGrid';
 
 export default async function SetupSessionPage({
@@ -17,10 +16,13 @@ export default async function SetupSessionPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const supabase = await createClient();
-  const params   = await searchParams;
+  const params = await searchParams;
 
   // ── Auth guard ──────────────────────────────────────────────────────────────
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
   if (userError || !user) redirect('/login');
 
   return (
@@ -56,30 +58,14 @@ export default async function SetupSessionPage({
 
       {/* ── Subtitle ── */}
       <p
-        className="text-sm leading-relaxed mb-2 max-w-xl animate-fade-up animate-fade-up-delay-1"
+        className="text-sm leading-relaxed mb-6 max-w-xl animate-fade-up animate-fade-up-delay-1"
         style={{ color: 'var(--color-codex-muted)' }}
       >
-        Every topic is chosen for analytical depth. Select one that will stretch
-        your vocabulary — the AI will weave your target words naturally into the discourse.
+        Pick a broad category below, or type any intellectual topic you want to
+        explore — the AI will weave your target words naturally into the discussion.
       </p>
 
-      {/* ── "No small talk" notice ── */}
-      <div
-        className="inline-flex items-center gap-2 px-3 py-1.5 mb-8 rounded-sm animate-fade-up animate-fade-up-delay-2"
-        style={{
-          background: 'color-mix(in srgb, var(--color-codex-gold) 8%, transparent)',
-          border: '1px solid color-mix(in srgb, var(--color-codex-gold) 20%, transparent)',
-        }}
-      >
-        <span
-          className="text-xs"
-          style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-gold)' }}
-        >
-          ⊘ &nbsp;No ordering coffee. No tourist directions. No weather chitchat.
-        </span>
-      </div>
-
-      {/* ── Error banner ── */}
+      {/* ── URL-level error banner (e.g. legacy redirects) ── */}
       {params.error && (
         <div
           className="mb-6 p-3 rounded text-sm animate-fade-up"
@@ -94,7 +80,17 @@ export default async function SetupSessionPage({
         </div>
       )}
 
-      <div className="divider mb-8" />
+      {/* ── Custom topic input — prominent, top of page ── */}
+      <CustomTopicForm />
+
+      <div className="divider mb-6" />
+
+      <p
+        className="text-xs uppercase tracking-widest mb-4"
+        style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-muted)' }}
+      >
+        — or choose a category
+      </p>
 
       {/* ── Interactive topic grid (Client Component) ── */}
       <TopicGrid />

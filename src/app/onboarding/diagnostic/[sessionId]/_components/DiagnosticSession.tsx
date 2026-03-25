@@ -70,6 +70,13 @@ function getPreferredMimeType(): string {
   return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? '';
 }
 
+/** Formats elapsed recording seconds as M:SS (e.g. 0:05, 1:23). */
+function formatElapsed(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function TurnBubble({ turn }: { turn: TurnEntry }) {
@@ -174,12 +181,13 @@ function RecordButton({
       onPointerLeave={onPointerLeave}
       disabled={isDisabled}
       aria-label={
-        isRecordingVisual ? 'Recording — release to send' :
-        isProcessing      ? 'AI is thinking, please wait' :
-        isPlayingVisual   ? 'Press to interrupt and speak' :
-        permission === 'denied' ? 'Microphone access denied' :
-        'Hold to record'
+        isRecordingVisual ? 'Recording in progress — release to send your response' :
+        isProcessing      ? 'Processing your voice — please wait' :
+        isPlayingVisual   ? 'AI is speaking — press to interrupt and speak' :
+        permission === 'denied' ? 'Microphone access denied — check your browser settings' :
+        'Press and hold to record your voice'
       }
+      aria-pressed={isPressed}
       className="record-button"
       data-pressed={isPressed}
       data-recording={phase === 'recording'}
@@ -257,18 +265,37 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
    * any mic acquisition or scheduler work.  Set to false on the very first
    * line of handlePointerUp/Leave.
    */
-  const [isPressed, setIsPressed]   = useState(false);
+  const [isPressed, setIsPressed]             = useState(false);
+  /** Elapsed recording seconds — drives the live timer display. */
+  const [recordingElapsed, setRecordingElapsed] = useState(0);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
-  const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
-  const chunksRef         = useRef<Blob[]>([]);
-  const streamRef         = useRef<MediaStream | null>(null);
-  const audioPlayerRef    = useRef<HTMLAudioElement | null>(null);
-  const transcriptEndRef  = useRef<HTMLDivElement | null>(null);
-  const recordingStartRef = useRef<number>(0);
-  const toastTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const phaseRef          = useRef<Phase>('idle');
-  const pointerIsDownRef  = useRef(false);
+  const mediaRecorderRef    = useRef<MediaRecorder | null>(null);
+  const chunksRef           = useRef<Blob[]>([]);
+  const streamRef           = useRef<MediaStream | null>(null);
+  const audioPlayerRef      = useRef<HTMLAudioElement | null>(null);
+  const transcriptEndRef    = useRef<HTMLDivElement | null>(null);
+  const recordingStartRef   = useRef<number>(0);
+  const toastTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phaseRef            = useRef<Phase>('idle');
+  const pointerIsDownRef    = useRef(false);
+  /**
+   * Interval ID for the live recording timer.
+   * Stored in a ref (not state) so updating it never triggers a re-render.
+   */
+  const timerIntervalRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  /**
+   * Shared AudioContext — created on first user gesture and reused.
+   * iOS Safari requires AudioContext.resume() before HTMLAudioElement.play()
+   * will succeed outside a synchronous user-gesture handler.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const audioContextRef     = useRef<AudioContext | null>(null);
+  /**
+   * ObjectURL created from the TTS base64 payload.
+   * Tracked here so stopAudio() can revoke it even during barge-in.
+   */
+  const currentObjectUrlRef = useRef<string | null>(null);
 
   // ── Stable phase setter ───────────────────────────────────────────────────
   // Always call this instead of setPhaseState directly — keeps phaseRef in
@@ -276,6 +303,39 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
   const setPhase = useCallback((p: Phase) => {
     phaseRef.current = p;
     setPhaseState(p);
+  }, []);
+
+  // ── Ensure AudioContext is running (iOS Safari autoplay unlock) ─────────
+  // Must be called synchronously inside a user-gesture handler (pointerdown).
+  const resumeAudioContext = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AC = (window.AudioContext ?? (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+    if (!AC) return;
+    if (!audioContextRef.current) {
+      try { audioContextRef.current = new AC(); } catch { return; }
+    }
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().catch(() => {});
+    }
+  }, []);
+
+  // ── Live recording timer ──────────────────────────────────────────────────
+  const startRecordingTimer = useCallback(() => {
+    setRecordingElapsed(0);
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - recordingStartRef.current) / 1000);
+      setRecordingElapsed((prev) => (prev !== elapsed ? elapsed : prev));
+    }, 100);
+  }, []);
+
+  const stopRecordingTimer = useCallback(() => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    setRecordingElapsed(0);
   }, []);
 
   // ── Stop TTS audio ────────────────────────────────────────────────────────
@@ -287,6 +347,11 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
     audio.pause();
     audio.src = '';
     audioPlayerRef.current = null;
+    // Revoke any ObjectURL created for Safari blob-URL fallback
+    if (currentObjectUrlRef.current) {
+      URL.revokeObjectURL(currentObjectUrlRef.current);
+      currentObjectUrlRef.current = null;
+    }
   }, []);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
@@ -300,6 +365,7 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
       streamRef.current?.getTracks().forEach((t) => t.stop());
       stopAudio();
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     };
   }, [stopAudio]);
 
@@ -387,20 +453,51 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
 
     if (data.audio_url) {
       setPhase('playing');
-      const audio = new Audio(data.audio_url);
+
+      // ── Safari / iOS: convert base64 data URL → Blob → ObjectURL ─────────
+      let audioSrc = data.audio_url;
+      let objectUrl: string | null = null;
+
+      if (data.audio_url.startsWith('data:')) {
+        try {
+          const [header, b64] = data.audio_url.split(',');
+          const mimeMatch = header.match(/data:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : 'audio/mpeg';
+          const binary = atob(b64);
+          const bytes  = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          objectUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+          audioSrc  = objectUrl;
+        } catch {
+          audioSrc = data.audio_url;
+        }
+      }
+
+      currentObjectUrlRef.current = objectUrl;
+      const audio = new Audio(audioSrc);
       audioPlayerRef.current = audio;
+
       const onDone = () => {
         // Race condition guard: if the user has already pressed the button to
         // start the next turn, pointerIsDownRef is true — do NOT reset phase
         // to idle or we will overwrite the 'recording' state they just set.
         if (pointerIsDownRef.current) return;
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+          if (currentObjectUrlRef.current === objectUrl) currentObjectUrlRef.current = null;
+        }
         audio.src = '';
         audioPlayerRef.current = null;
         setPhase('idle');
       };
       audio.onended = onDone;
       audio.onerror = onDone;
-      audio.play().catch(onDone);
+
+      // iOS Safari: resume AudioContext first, then play.
+      const ctx = audioContextRef.current;
+      (ctx?.state === 'suspended' ? ctx.resume() : Promise.resolve())
+        .then(() => audio.play())
+        .catch(onDone);
     } else {
       setPhase('idle');
     }
@@ -409,10 +506,9 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
   // ── Pointer down: start recording ────────────────────────────────────────
   const handlePointerDown = useCallback(async () => {
     // ── 1. Synchronous hardware-state update — fires before any async work ──
-    // React batches this with all other synchronous updates in the handler and
-    // commits them when the async function yields at `await acquireMic()`.
-    // This gives 0 ms visual latency: isPressed → data-pressed="true" → CSS.
     setIsPressed(true);
+    // iOS Safari: unlock AudioContext while still inside the user-gesture handler.
+    resumeAudioContext();
 
     const currentPhase = phaseRef.current;
     if (currentPhase === 'processing' || currentPhase === 'recording') return;
@@ -450,14 +546,17 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
 
     mediaRecorderRef.current = recorder;
     recordingStartRef.current = Date.now();
+    startRecordingTimer();
     recorder.start(100);
-  }, [acquireMic, stopAudio, setPhase]);
+  }, [acquireMic, stopAudio, setPhase, resumeAudioContext, startRecordingTimer]);
 
   // ── Pointer up: stop and send ─────────────────────────────────────────────
   const handlePointerUp = useCallback(() => {
     // Clear the hardware-press visual immediately — before any recorder logic.
     setIsPressed(false);
     pointerIsDownRef.current = false;
+    // Stop the live recording timer regardless of whether we send the audio.
+    stopRecordingTimer();
 
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state === 'inactive') return;
@@ -479,7 +578,7 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
     };
     recorder.stop();
     mediaRecorderRef.current = null;
-  }, [showToast, sendAudioBlob]);
+  }, [showToast, sendAudioBlob, stopRecordingTimer]);
 
   // ── Finalize assessment ───────────────────────────────────────────────────
   const handleFinalize = useCallback(async () => {
@@ -642,7 +741,13 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
       <div className="divider mb-6" />
 
       {/* ── Transcript ── */}
-      <section className="flex-1 overflow-y-auto mb-6">
+      <section
+        className="flex-1 overflow-y-auto mb-6"
+        role="log"
+        aria-label="Assessment transcript"
+        aria-live="polite"
+        aria-relevant="additions"
+      >
         {turns.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-center animate-fade-up">
             <p
@@ -710,10 +815,21 @@ export default function DiagnosticSession({ sessionId, minTurns }: Props) {
 
       {/* ── Mic button area ── */}
       <div className="flex flex-col items-center gap-3 px-4 pt-4 pb-6 animate-fade-up">
-        {/* Phase label — above the button, matching VoiceSession layout */}
-        <p className="phase-label" data-phase={phase}>
+        {/* Phase label — role="status" announces state changes to screen readers */}
+        <p
+          className="phase-label"
+          data-phase={phase}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {recordLabel}
         </p>
+
+        {/* Live recording timer — only visible while capturing audio */}
+        {(phase === 'recording' || isPressed) && (
+          <span className="recording-timer">{formatElapsed(recordingElapsed)}</span>
+        )}
 
         {/* The big mic button */}
         <RecordButton

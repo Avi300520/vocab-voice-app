@@ -1,9 +1,16 @@
+'use client';
+
 /**
  * src/app/session/[id]/summary/_components/SummaryHeader.tsx
  *
  * Displays session metadata: topic, status badge, turn count, duration, date.
+ *
+ * Client Component so we can auto-focus the heading on mount — essential for
+ * screen reader users who arrive via a redirect from the live session.
+ * Without this, focus stays on the body and the SR announces nothing useful.
  */
 
+import { useEffect, useRef } from 'react';
 import type { SessionRow } from '@/lib/supabase/types';
 
 interface Props {
@@ -32,6 +39,13 @@ function formatDate(iso: string): string {
 
 export default function SummaryHeader({ session }: Props) {
   const isCompleted = session.status === 'completed';
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  // Auto-focus the heading on mount so screen readers announce the summary
+  // immediately when the user is redirected here from the live session page.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
 
   return (
     <header className="animate-fade-up">
@@ -58,9 +72,11 @@ export default function SummaryHeader({ session }: Props) {
         </span>
       </div>
 
-      {/* Topic */}
+      {/* Topic — tabIndex={-1} allows programmatic focus without a visible tab stop */}
       <h1
-        className="font-display text-3xl md:text-4xl mb-4"
+        ref={headingRef}
+        tabIndex={-1}
+        className="font-display text-3xl md:text-4xl mb-4 focus:outline-none"
         style={{ color: 'var(--color-codex-text)' }}
       >
         {session.topic}

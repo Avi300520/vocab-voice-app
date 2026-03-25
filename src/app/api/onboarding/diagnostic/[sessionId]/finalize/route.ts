@@ -191,5 +191,11 @@ Rules for target_words:
     .eq('id', sessionId)
     .eq('user_id', user.id);
 
+  // ── Set onboarding_completed flag ──────────────────────────────────────────
+  await supabase
+    .from('profiles')
+    .update({ onboarding_completed: true })
+    .eq('id', user.id);
+
   return Response.json(report, { status: 200 });
 }

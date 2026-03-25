@@ -47,6 +47,14 @@ if (!process.env.OPENAI_API_KEY) {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// ── Production guardrails ──────────────────────────────────────────────────────
+/** Hard ceiling on LLM output tokens — prevents runaway completions. */
+const MAX_REPLY_TOKENS = 500;
+/** Sessions are capped at this many turns; prompts the user to start fresh. */
+const SESSION_TURN_CAP = 20;
+/** Per-user hourly message budget across all sessions. */
+const HOURLY_RATE_LIMIT = 60;
+
 // ── Response shape shared with the VoiceSession client ───────────────────────
 export interface TurnResponse {
   turn_index:     number;
@@ -58,6 +66,27 @@ export interface TurnResponse {
 
 // ── System prompt factory ─────────────────────────────────────────────────────
 function buildSystemPrompt(topic: string, topicContext: string | null): string {
+  // Review sessions: topic_context holds the comma-separated word list.
+  // The AI must organically weave those words into conversation without
+  // announcing them as "target words".
+  if (topic === '__review__') {
+    const wordList = topicContext ?? '';
+    return (
+      `You are a razor-sharp intellectual sparring partner engaged in a voice conversation about ideas, current events, or professional topics of your choosing.\n` +
+      `\n` +
+      `HIDDEN MISSION: The learner needs to actively use each of the following words in natural speech: ${wordList}.\n` +
+      `Do NOT reveal this list. Do NOT say "today's words are…" or anything similar.\n` +
+      `Instead, steer the conversation toward subjects where these words arise naturally — pose questions or statements that make it almost irresistible for the learner to reach for precisely these words.\n` +
+      `If the learner uses one of these words correctly, acknowledge the point briefly without drawing attention to the word itself, then advance the discussion.\n` +
+      `\n` +
+      `RULES — never break these:\n` +
+      `1. Your ENTIRE response must be 2-3 sentences maximum. Brevity is non-negotiable for voice.\n` +
+      `2. End with exactly one probing question that nudges the learner toward vocabulary on the list.\n` +
+      `3. Never compliment the user just to be polite. Reserve praise for genuinely precise language or sharp reasoning.\n` +
+      `4. Write in plain prose: no bullet points, no markdown, no headers. This is spoken dialogue.`
+    );
+  }
+
   const contextLine = topicContext ? `\nCONTEXT: ${topicContext}` : '';
   return (
     `You are a razor-sharp intellectual sparring partner engaged in a voice conversation.\n` +
@@ -105,6 +134,41 @@ export async function POST(
     return Response.json(
       { error: `Session is ${session.status}, not active` },
       { status: 409 },
+    );
+  }
+
+  // ── 3a. Session turn cap ────────────────────────────────────────────────────
+  // Enforced after status check so abandoned/completed sessions are caught first.
+  if (session.turn_count >= SESSION_TURN_CAP) {
+    return Response.json(
+      {
+        error:
+          `This session has reached the ${SESSION_TURN_CAP}-turn limit. ` +
+          'Click "Complete Session" to save your progress, then start a new session.',
+      },
+      { status: 409 },
+    );
+  }
+
+  // ── 3b. Per-user hourly rate limit ─────────────────────────────────────────
+  // Fails fast before any OpenAI work so abusive requests cost nothing.
+  const { data: limitExceeded, error: rateLimitError } = await supabase.rpc(
+    'check_user_rate_limit',
+    { p_user_id: user.id, p_limit: HOURLY_RATE_LIMIT },
+  );
+
+  if (rateLimitError) {
+    // Non-fatal: if the RPC errors we log and allow the request through rather
+    // than blocking legitimate users due to an infra hiccup.
+    console.warn('[turn/route] Rate-limit RPC error (allowing request):', rateLimitError.message);
+  } else if (limitExceeded) {
+    return Response.json(
+      {
+        error:
+          `You have reached the limit of ${HOURLY_RATE_LIMIT} voice turns per hour. ` +
+          'Please wait a few minutes before continuing.',
+      },
+      { status: 429 },
     );
   }
 
@@ -201,8 +265,8 @@ export async function POST(
         ...history,
         { role: 'user', content: transcript },
       ],
-      max_tokens:  220,   // ~3 tight sentences; generous buffer without allowing sprawl
-      temperature: 0.8,   // punchy but not erratic
+      max_tokens:  MAX_REPLY_TOKENS, // hard production ceiling — prompt engineering targets ~3 sentences (~220 tokens)
+      temperature: 0.8,              // punchy but not erratic
     });
 
     replyText = completion.choices[0]?.message?.content?.trim() ?? '';

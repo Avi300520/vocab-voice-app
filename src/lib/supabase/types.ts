@@ -42,6 +42,7 @@ export type ProfileRow = {
   proficiency: 'intermediate' | 'advanced' | 'native';
   voice_id: string | null;
   settings: Record<string, unknown>;
+  onboarding_completed: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -143,6 +144,7 @@ export type ProfileInsert = {
   proficiency: 'intermediate' | 'advanced' | 'native';
   voice_id?: string | null;
   settings?: Record<string, unknown>;
+  onboarding_completed?: boolean;
 };
 
 export type WordInsert = {
@@ -208,6 +210,7 @@ export type ProfileUpdate = {
   proficiency?: 'intermediate' | 'advanced' | 'native';
   voice_id?: string | null;
   settings?: Record<string, unknown>;
+  onboarding_completed?: boolean;
   updated_at?: string;
 };
 

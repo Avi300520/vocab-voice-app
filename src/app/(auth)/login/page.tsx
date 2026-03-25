@@ -9,11 +9,11 @@ import { signIn } from '@/app/actions/auth';
 import Link from 'next/link';
 
 interface LoginPageProps {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; session_expired?: string }>;
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { error, message } = await searchParams;
+  const { error, message, session_expired } = await searchParams;
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -29,16 +29,23 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </p>
         </div>
 
+        {/* Session expired banner */}
+        {session_expired === 'true' && (
+          <div role="status" className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Your session has expired. Please sign in again.
+          </div>
+        )}
+
         {/* Info message (e.g. "check your email") */}
         {message && (
-          <div className="rounded border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <div role="status" className="rounded border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
             {message}
           </div>
         )}
 
         {/* Error message */}
         {error && (
-          <div className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div role="alert" className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
           </div>
         )}
@@ -72,12 +79,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Sign in
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              type="submit"
+              className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Sign in
+            </button>
+            <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
         </form>
       </div>
     </main>

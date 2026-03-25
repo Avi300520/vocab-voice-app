@@ -60,18 +60,25 @@ export const proxy: NextProxy = async (request: NextRequest) => {
    */
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
 
-  // ── Protected routes: /dashboard  /words  /setup-session ────────────────
-  const PROTECTED = ['/dashboard', '/words', '/setup-session'];
+  // ── Protected routes: /dashboard  /words  /setup-session  /review  /settings ──
+  const PROTECTED = ['/dashboard', '/words', '/setup-session', '/review', '/settings'];
   const isProtected = PROTECTED.some((p) => pathname.startsWith(p));
 
   if (!user && isProtected) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
-    loginUrl.searchParams.set('message', 'Please+sign+in+to+continue.');
+    // authError present → session existed but token is expired/invalid.
+    // No authError → user simply has no session (first visit, signed out).
+    if (authError) {
+      loginUrl.searchParams.set('session_expired', 'true');
+    } else {
+      loginUrl.searchParams.set('message', 'Please+sign+in+to+continue.');
+    }
     return NextResponse.redirect(loginUrl);
   }
 

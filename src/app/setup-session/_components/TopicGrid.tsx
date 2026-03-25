@@ -167,15 +167,15 @@ export default function TopicGrid() {
         ))}
       </div>
 
-      {/* ── Global pending hint ── */}
-      {isPending && (
-        <p
-          className="text-center text-xs"
-          style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-faint)' }}
-        >
-          Preparing your session...
-        </p>
-      )}
+      {/* ── Global pending hint — role="status" announces to screen readers ── */}
+      <p
+        role="status"
+        aria-live="polite"
+        className="text-center text-xs"
+        style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-codex-faint)', minHeight: '1.25rem' }}
+      >
+        {isPending ? 'Preparing your session…' : ''}
+      </p>
     </div>
   );
 }

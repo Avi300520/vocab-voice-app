@@ -528,22 +528,25 @@ async function processJob(
 serve(async (req: Request) => {
   const invocationStart = Date.now();
 
-  // ── Internal secret guard (replaces JWT, since verify_jwt = false) ────────
-  // The pg_cron job sends X-Internal-Secret from Vault. Anything without the
-  // correct secret is rejected immediately — before any DB or NLP work.
-  const expectedSecret = Deno.env.get('CRON_INVOKE_SECRET');
-  const providedSecret = req.headers.get('X-Internal-Secret');
-  if (!expectedSecret || providedSecret !== expectedSecret) {
-    console.warn('[semantic-worker] Unauthorized: missing or invalid X-Internal-Secret');
+  // ── Authorization guard (verify_jwt = false — we validate manually) ──────
+  // The pg_cron job (migration 004) sends:
+  //   Authorization: Bearer <service_role_key>
+  // We validate the Bearer token matches SUPABASE_SERVICE_ROLE_KEY.
+  // This is the standard Supabase service-role authentication pattern.
+  const supabaseUrl    = Deno.env.get('SUPABASE_URL')!;
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+  const authHeader = req.headers.get('Authorization');
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!bearerToken || bearerToken !== serviceRoleKey) {
+    console.warn('[semantic-worker] Unauthorized: missing or invalid Authorization Bearer token');
     return new Response(
       JSON.stringify({ error: 'Unauthorized' }),
       { status: 401, headers: { 'Content-Type': 'application/json' } },
     );
   }
 
-  const supabaseUrl    = Deno.env.get('SUPABASE_URL')!;
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase       = createClient(supabaseUrl, serviceRoleKey);
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   // ── Dequeue batch ─────────────────────────────────────────────────────
   const { data: messages, error: readError } = await supabase.rpc('pgmq_read', {

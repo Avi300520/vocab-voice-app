@@ -32,7 +32,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
 
         {/* Error message */}
         {error && (
-          <div className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div role="alert" className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
           </div>
         )}

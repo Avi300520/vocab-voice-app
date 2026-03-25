@@ -19,6 +19,11 @@ if (!process.env.OPENAI_API_KEY) {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// ── Production guardrails ──────────────────────────────────────────────────────
+const MAX_REPLY_TOKENS  = 500;
+const SESSION_TURN_CAP  = 20;
+const HOURLY_RATE_LIMIT = 60;
+
 // ── Assessor system prompt ────────────────────────────────────────────────────
 
 const ASSESSOR_SYSTEM_PROMPT = `You are an expert English language assessor conducting a spoken proficiency interview.
@@ -65,6 +70,37 @@ export async function POST(
   // Guard: must be a diagnostic session
   if (session.topic !== '__diagnostic__') {
     return Response.json({ error: 'Not a diagnostic session' }, { status: 400 });
+  }
+
+  // ── Session turn cap ───────────────────────────────────────────────────────
+  if (session.turn_count >= SESSION_TURN_CAP) {
+    return Response.json(
+      {
+        error:
+          `This session has reached the ${SESSION_TURN_CAP}-turn limit. ` +
+          'Click "Finish Assessment" to generate your diagnostic report.',
+      },
+      { status: 409 },
+    );
+  }
+
+  // ── Per-user hourly rate limit ─────────────────────────────────────────────
+  const { data: limitExceeded, error: rateLimitError } = await supabase.rpc(
+    'check_user_rate_limit',
+    { p_user_id: user.id, p_limit: HOURLY_RATE_LIMIT },
+  );
+
+  if (rateLimitError) {
+    console.warn('[diagnostic/turn] Rate-limit RPC error (allowing request):', rateLimitError.message);
+  } else if (limitExceeded) {
+    return Response.json(
+      {
+        error:
+          `You have reached the limit of ${HOURLY_RATE_LIMIT} voice turns per hour. ` +
+          'Please wait a few minutes before continuing.',
+      },
+      { status: 429 },
+    );
   }
 
   // ── Parse audio ───────────────────────────────────────────────────────────
@@ -122,7 +158,7 @@ export async function POST(
         ...history,
         { role: 'user', content: transcript },
       ],
-      max_tokens:  180,
+      max_tokens:  MAX_REPLY_TOKENS,
       temperature: 0.7,
     });
 

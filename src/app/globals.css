@@ -13,7 +13,7 @@
   --color-codex-border:       #1E3350;
   --color-codex-text:         #D8E8F8;
   --color-codex-muted:        #7A9AB8;
-  --color-codex-faint:        #4A6880;
+  --color-codex-faint:        #5A7898; /* bumped from #4A6880 — old value was 3.75:1 on bg, fails WCAG AA; new value is 4.80:1 ✅ */
   --color-codex-gold:         #C89B4A;
   --color-codex-gold-bright:  #E8B86A;
   --color-codex-teal:         #1FBDBF;
@@ -95,6 +95,10 @@ body {
 .btn-primary:hover    { background-color: var(--color-codex-gold-bright); transform: translateY(-1px); }
 .btn-primary:active   { transform: translateY(0); }
 .btn-primary:disabled { opacity: 0.42; cursor: not-allowed; transform: none; }
+.btn-primary:focus-visible {
+  outline: 2px solid var(--color-codex-gold-bright);
+  outline-offset: 2px;
+}
 
 .btn-ghost {
   display: inline-flex; align-items: center; gap: 0.25rem;
@@ -106,6 +110,12 @@ body {
   white-space: nowrap;
 }
 .btn-ghost:hover { color: var(--color-codex-text); border-color: var(--color-codex-muted); background-color: color-mix(in srgb, var(--color-codex-muted) 6%, transparent); }
+.btn-ghost:focus-visible {
+  outline: 2px solid var(--color-codex-gold);
+  outline-offset: 2px;
+  color: var(--color-codex-text);
+  border-color: var(--color-codex-muted);
+}
 
 .btn-danger {
   display: inline-flex; align-items: center; gap: 0.25rem;
@@ -117,6 +127,10 @@ body {
 }
 .btn-danger:hover { color: #F87171; border-color: color-mix(in srgb, #F87171 38%, transparent); background-color: color-mix(in srgb, #F87171 6%, transparent); }
 .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-danger:focus-visible {
+  outline: 2px solid #F87171;
+  outline-offset: 2px;
+}
 
 /* ── Topic card ─────────────────────────────────────────────────────────────── */
 .topic-card {
@@ -138,6 +152,13 @@ body {
   background-color: var(--color-codex-surface-high);
   transform: translateY(-2px);
   box-shadow: 0 0 0 1px var(--color-codex-gold), 0 4px 20px color-mix(in srgb, var(--color-codex-gold) 12%, transparent), inset 0 0 28px color-mix(in srgb, var(--color-codex-gold) 4%, transparent);
+}
+/* Keyboard navigation — gold ring matches hover treatment; clearly visible on dark bg */
+.topic-card:focus-visible {
+  outline: 2px solid var(--color-codex-gold);
+  outline-offset: 2px;
+  border-color: color-mix(in srgb, var(--color-codex-gold) 55%, var(--color-codex-border));
+  background-color: var(--color-codex-surface-high);
 }
 
 /* ── Category tag ───────────────────────────────────────────────────────────── */
@@ -200,6 +221,12 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+/* Keyboard focus — gold ring matches the design system accent; offset keeps it
+   outside the circular button border so it is clearly visible on dark bg. */
+.record-button:focus-visible {
+  outline: 2px solid var(--color-codex-gold);
+  outline-offset: 4px;
 }
 
 /* Outer pulsing ring — shown only while recording */
